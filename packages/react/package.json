@@ -1,0 +1,40 @@
+{
+  "name": "@browser-ui/react",
+  "version": "0.1.0",
+  "description": "A composable, transport-agnostic browser surface for React.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "./dist/styles.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./styles.css": "./dist/styles.css"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "scripts": {
+    "build": "tsup src/index.tsx --clean --format esm,cjs --dts --external react --external react-dom --loader .css=copy && find dist -maxdepth 1 -name 'styles-*.css' -exec sh -c 'cp \"$1\" dist/styles.css' _ {} \\;",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "motion": "^12.42.2"
+  }
+}
