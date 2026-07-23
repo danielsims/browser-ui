@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.15.0",
   "scripts": {
     "dev": "pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/demo dev",
-    "build": "pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/demo build",
+    "build": "pnpm --filter @browser-ui/demo build",
     "typecheck": "pnpm --filter @browser-ui/react typecheck && pnpm --filter @browser-ui/demo typecheck"
   }
 }
