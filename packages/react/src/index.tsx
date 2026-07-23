@@ -1,7 +1,5 @@
 "use client";
 
-import "./styles.css";
-
 export { Browser } from "./browser";
 export type { BrowserProps } from "./browser";
 export { BrowserDisplayControls, BrowserFullscreenTrigger, BrowserPictureInPictureTrigger, BrowserRoot } from "./browser-root";

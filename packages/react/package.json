@@ -1,6 +1,6 @@
 {
   "name": "@browser-ui/react",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A composable, transport-agnostic browser surface for React.",
   "keywords": [
     "agent-browser",
@@ -23,7 +23,8 @@
     "dist"
   ],
   "sideEffects": [
-    "./dist/styles.css"
+    "./src/*.css",
+    "./dist/*.css"
   ],
   "exports": {
     ".": {
@@ -38,7 +39,7 @@
     "react-dom": ">=18"
   },
   "scripts": {
-    "build": "tsup src/index.tsx --clean --format esm,cjs --dts --external react --external react-dom --loader .css=copy && find dist -maxdepth 1 -name 'styles-*.css' -exec sh -c 'cp \"$1\" dist/styles.css' _ {} \\;",
+    "build": "tsup src/index.tsx --clean --format esm,cjs --dts --external react --external react-dom --loader .css=copy && node scripts/finalize-styles.mjs",
     "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit"
   },
