@@ -24,6 +24,7 @@
 
 .bui-browser-frame {
   position: relative;
+  z-index: 100;
   isolation: isolate;
   width: 100%;
   min-width: 0;

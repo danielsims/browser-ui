@@ -14,6 +14,7 @@ import { workflows, type WorkflowId } from "../workflows";
 const desktopViewport = { width: 1440, height: 900 } as const;
 const enterPictureInPictureAt = .24;
 const returnInlineAt = .52;
+const workflowTransitionDelayMs = 2_400;
 
 const usageCode = `import { Browser } from "@browser-ui/react";
 import "@browser-ui/react/styles.css";
@@ -157,6 +158,7 @@ export default function Home() {
   const workflowRun = useRef(0);
   const activeWorkflow = useRef<WorkflowId>(initialWorkflow.id);
   const startedInitialWorkflow = useRef(false);
+  const autoAdvanceTimer = useRef<number | null>(null);
   const workflow = workflows.find((item) => item.id === workflowId) ?? initialWorkflow;
 
   const resize = useCallback((width: number, height: number) => {
@@ -165,6 +167,10 @@ export default function Home() {
   }, []);
 
   const runWorkflow = useCallback(async (nextWorkflow: (typeof workflows)[number]) => {
+    if (autoAdvanceTimer.current !== null) {
+      window.clearTimeout(autoAdvanceTimer.current);
+      autoAdvanceTimer.current = null;
+    }
     const run = ++workflowRun.current;
     activeWorkflow.current = nextWorkflow.id;
     setWorkflowId(nextWorkflow.id);
@@ -178,6 +184,10 @@ export default function Home() {
   }, []);
 
   const cancelWorkflow = useCallback(() => {
+    if (autoAdvanceTimer.current !== null) {
+      window.clearTimeout(autoAdvanceTimer.current);
+      autoAdvanceTimer.current = null;
+    }
     workflowRun.current += 1;
     setOperating(false);
     setAgentCursor((current) => ({ ...current, visible: false, pressed: false, typing: false }));
@@ -196,6 +206,14 @@ export default function Home() {
       else if (event.type === "cursor-state") setAgentCursor((current) => ({ ...current, pressed: event.pressed, typing: event.typing }));
       else if (event.type === "complete") {
         setOperating(false);
+        const completedWorkflowId = event.workflowId ?? activeWorkflow.current;
+        const completedIndex = workflows.findIndex((item) => item.id === completedWorkflowId);
+        const nextIndex = completedIndex < 0 ? 0 : (completedIndex + 1) % workflows.length;
+        const nextWorkflow = workflows[nextIndex];
+        autoAdvanceTimer.current = window.setTimeout(() => {
+          autoAdvanceTimer.current = null;
+          void runWorkflow(nextWorkflow);
+        }, workflowTransitionDelayMs);
       } else if (event.type === "cancel") {
         setOperating(false);
         setAgentCursor((current) => ({ ...current, visible: false }));
@@ -205,8 +223,12 @@ export default function Home() {
     };
     return () => {
       events.close();
+      if (autoAdvanceTimer.current !== null) {
+        window.clearTimeout(autoAdvanceTimer.current);
+        autoAdvanceTimer.current = null;
+      }
     };
-  }, [streamUrl]);
+  }, [runWorkflow, streamUrl]);
 
   useEffect(() => {
     if (status !== "connected" || startedInitialWorkflow.current) return;
