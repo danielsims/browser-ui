@@ -6,6 +6,7 @@ import {
   Browser,
   BrowserDisplayControls,
   BrowserFullscreenTrigger,
+  BrowserOperatingOverlay,
   BrowserPictureInPictureTrigger,
   BrowserRoot,
   BrowserSurface,
@@ -20,6 +21,7 @@ const desktopViewport = { width: 1440, height: 900 } as const;
 const enterPictureInPictureAt = .24;
 const returnInlineAt = .52;
 const workflowTransitionDelayMs = 2_400;
+const recordedPlaybackRate = 2.25;
 
 const usageCode = `import { Browser } from "@browser-ui/react";
 
@@ -144,12 +146,14 @@ async function browserCommand(body: Record<string, unknown>) {
 }
 
 function RecordedBrowserPreview({
+  label,
   onEnded,
   onModeChange,
   playbackKey,
   src,
   mode,
 }: {
+  label: string;
   onEnded: () => void;
   onModeChange: (mode: BrowserDisplayMode) => void;
   playbackKey: number;
@@ -157,16 +161,24 @@ function RecordedBrowserPreview({
   mode: BrowserDisplayMode;
 }) {
   return <BrowserRoot mode={mode} onModeChange={onModeChange}>
-    <BrowserSurface className="recorded-browser-surface" style={{ aspectRatio: "16 / 10" }}>
+    <BrowserSurface
+      className="recorded-browser-surface"
+      overlay={<BrowserOperatingOverlay label={label} />}
+      style={{ aspectRatio: "16 / 10" }}
+    >
       <video
         aria-label="Recorded browser workflow preview"
         autoPlay
         className="recorded-browser-preview"
         key={`${src}-${playbackKey}`}
         muted
+        onLoadedMetadata={(event) => {
+          event.currentTarget.defaultPlaybackRate = recordedPlaybackRate;
+          event.currentTarget.playbackRate = recordedPlaybackRate;
+        }}
         onEnded={onEnded}
         playsInline
-        preload="metadata"
+        preload="auto"
         src={src}
       />
     </BrowserSurface>
@@ -285,7 +297,7 @@ export default function Home() {
 
   useEffect(() => {
     const preview = previewRef.current;
-    if (!preview || !streamUrl) return;
+    if (!preview) return;
     const observer = new IntersectionObserver(([entry]) => {
       const hasScrolledPastPreview = entry.boundingClientRect.top < 0;
       const shouldFloat = hasScrolledPastPreview && entry.intersectionRatio <= enterPictureInPictureAt;
@@ -308,7 +320,7 @@ export default function Home() {
     }, { threshold: [0, enterPictureInPictureAt, returnInlineAt, 1] });
     observer.observe(preview);
     return () => observer.disconnect();
-  }, [streamUrl]);
+  }, []);
 
   const changeDisplayMode = useCallback((nextMode: BrowserDisplayMode) => {
     autoPictureInPicture.current = false;
@@ -363,6 +375,7 @@ export default function Home() {
           onStatusChange={setStatus}
         /> : <RecordedBrowserPreview
           key={workflow.id}
+          label={actionLabel}
           mode={displayMode}
           onEnded={advanceRecordedPreview}
           onModeChange={changeDisplayMode}
