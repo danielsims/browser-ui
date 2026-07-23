@@ -80,3 +80,9 @@ the browser process and transport.
 1440 × 900 while rendered inline, in a 440px picture-in-picture window, or
 fullscreen. `BrowserRoot` exposes those layouts as the composable `mode` values
 `inline`, `picture-in-picture`, and `fullscreen`.
+
+## Direction
+
+Browser UI begins as a React web component. Future work will explore native
+mobile and Expo-friendly sheet presentations, alongside Safari-backed browser
+sessions, without locking those surfaces into the current API.
