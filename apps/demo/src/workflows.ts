@@ -16,6 +16,8 @@ export interface DemoWorkflow {
   description: string;
   outcome: string;
   startUrl: string;
+  /** A bundled capture used by the public demo when no live stream is configured. */
+  previewSrc: string;
   steps: readonly WorkflowStep[];
 }
 
@@ -28,6 +30,7 @@ export const workflows = [
     description: "Find Mac mini, configure the desktop and a Studio Display, then hand the live session back at Apple’s final review.",
     outcome: "Mac mini and Studio Display configured for final review",
     startUrl: "https://www.apple.com/",
+    previewSrc: "/previews/configure-mac-mini.webm",
     steps: [
       { action: "open", label: "Opening apple.com", url: "https://www.apple.com/", wait: 2_800 },
       { action: "reset-page", label: "Starting with a fresh Apple session", wait: 1_100 },
@@ -57,6 +60,7 @@ export const workflows = [
     description: "Search Tokyo for a five-night stay, compare real homes with essential amenities and hand over on the selected property.",
     outcome: "Tokyo Airbnb selected for review",
     startUrl: "https://www.airbnb.com/",
+    previewSrc: "/previews/find-tokyo-stay.webm",
     steps: [
       { action: "open", label: "Opening Airbnb", url: "https://www.airbnb.com/", wait: 4_500 },
       { action: "type", label: "Searching for Tokyo", selector: "input[aria-label=\"Where\"]", text: "Tokyo", wait: 1_000 },

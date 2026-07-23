@@ -25,6 +25,12 @@ The documentation controls `mode` with an `IntersectionObserver`: scrolling the
 inline preview fully above the viewport moves the same live session into PiP,
 and returning to the preview animates it back into place.
 
+When `NEXT_PUBLIC_BROWSER_STREAM_URL` is not configured, the deployed demo
+plays the bundled WebM workflow captures instead. They are served as static
+assets by the deployment, so the repository can remain private and visitors do
+not create an agent-browser session. Configure the stream URL to use the live,
+takeover-capable demo.
+
 ## React integration
 
 ```tsx

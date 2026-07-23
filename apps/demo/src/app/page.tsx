@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { motion } from "motion/react";
 import {
   Browser,
+  BrowserDisplayControls,
+  BrowserFullscreenTrigger,
+  BrowserPictureInPictureTrigger,
+  BrowserRoot,
+  BrowserSurface,
   type BrowserAgentCursorState,
   type BrowserDisplayMode,
   type BrowserViewportStatus,
@@ -138,6 +143,40 @@ async function browserCommand(body: Record<string, unknown>) {
   if (!response.ok) throw new Error((await response.json() as { error?: string }).error ?? "Browser command failed");
 }
 
+function RecordedBrowserPreview({
+  onEnded,
+  onModeChange,
+  playbackKey,
+  src,
+  mode,
+}: {
+  onEnded: () => void;
+  onModeChange: (mode: BrowserDisplayMode) => void;
+  playbackKey: number;
+  src: string;
+  mode: BrowserDisplayMode;
+}) {
+  return <BrowserRoot mode={mode} onModeChange={onModeChange}>
+    <BrowserSurface className="recorded-browser-surface" style={{ aspectRatio: "16 / 10" }}>
+      <video
+        aria-label="Recorded browser workflow preview"
+        autoPlay
+        className="recorded-browser-preview"
+        key={`${src}-${playbackKey}`}
+        muted
+        onEnded={onEnded}
+        playsInline
+        preload="metadata"
+        src={src}
+      />
+    </BrowserSurface>
+    <BrowserDisplayControls>
+      <BrowserPictureInPictureTrigger />
+      <BrowserFullscreenTrigger />
+    </BrowserDisplayControls>
+  </BrowserRoot>;
+}
+
 export default function Home() {
   const streamUrl = process.env.NEXT_PUBLIC_BROWSER_STREAM_URL;
   const initialWorkflow = workflows[0];
@@ -149,6 +188,7 @@ export default function Home() {
   const [actionLabel, setActionLabel] = useState<string>(initialWorkflow.steps[0].label);
   const [agentCursor, setAgentCursor] = useState<BrowserAgentCursorState>({ x: .5, y: .5, visible: false });
   const [displayMode, setDisplayMode] = useState<BrowserDisplayMode>("inline");
+  const [previewPlaybackKey, setPreviewPlaybackKey] = useState(0);
   const displayModeRef = useRef<BrowserDisplayMode>("inline");
   const previewRef = useRef<HTMLDivElement>(null);
   const autoPictureInPicture = useRef(false);
@@ -180,6 +220,14 @@ export default function Home() {
     try { await browserCommand({ action: "run-workflow", workflowId: nextWorkflow.id }); }
     catch { /* The operating state and stream surface communicate interruption. */ }
     finally { if (workflowRun.current === run) setOperating(false); }
+  }, []);
+
+  const playRecordedWorkflow = useCallback((nextWorkflow: (typeof workflows)[number]) => {
+    setWorkflowId(nextWorkflow.id);
+    setOperating(false);
+    setActionLabel(nextWorkflow.steps[0].label);
+    setAgentCursor({ x: .5, y: .5, visible: false });
+    setPreviewPlaybackKey((current) => current + 1);
   }, []);
 
   const cancelWorkflow = useCallback(() => {
@@ -276,6 +324,17 @@ export default function Home() {
     setDisplayMode(nextMode);
   }, []);
 
+  const selectWorkflow = useCallback((nextWorkflow: (typeof workflows)[number]) => {
+    if (streamUrl) void runWorkflow(nextWorkflow);
+    else playRecordedWorkflow(nextWorkflow);
+  }, [playRecordedWorkflow, runWorkflow, streamUrl]);
+
+  const advanceRecordedPreview = useCallback(() => {
+    const completedIndex = workflows.findIndex((item) => item.id === workflowId);
+    const nextWorkflow = workflows[(completedIndex + 1) % workflows.length];
+    playRecordedWorkflow(nextWorkflow);
+  }, [playRecordedWorkflow, workflowId]);
+
   return <main>
     <section className="intro">
       <h1>Browser</h1>
@@ -302,7 +361,14 @@ export default function Home() {
           onUrlChange={setLiveUrl}
           onViewportResize={resize}
           onStatusChange={setStatus}
-        /> : <div className="live-unavailable"><span>Demo unavailable</span><small>Connect this deployment to an agent-browser stream or a recorded WebM preview.</small></div>}
+        /> : <RecordedBrowserPreview
+          key={workflow.id}
+          mode={displayMode}
+          onEnded={advanceRecordedPreview}
+          onModeChange={changeDisplayMode}
+          playbackKey={previewPlaybackKey}
+          src={workflow.previewSrc}
+        />}
       </div>
 
       <div className="workflow-panel">
@@ -318,8 +384,7 @@ export default function Home() {
                 role="tab"
                 aria-selected={active}
                 key={item.id}
-                disabled={!streamUrl}
-                onClick={() => void runWorkflow(item)}
+                onClick={() => selectWorkflow(item)}
               >
                 {active ? <motion.span
                   className="workflow-tab-indicator"
@@ -334,7 +399,7 @@ export default function Home() {
         </div>
         <div className="workflow-detail">
           <p>{workflow.description}</p>
-          <button className="replay" type="button" disabled={!streamUrl || operating} onClick={() => void runWorkflow(workflow)}>Replay</button>
+          <button className="replay" type="button" disabled={Boolean(streamUrl && operating)} onClick={() => selectWorkflow(workflow)}>Replay</button>
         </div>
       </div>
     </section>
