@@ -17,7 +17,6 @@ const returnInlineAt = .52;
 const workflowTransitionDelayMs = 2_400;
 
 const usageCode = `import { Browser } from "@browser-ui/react";
-import "@browser-ui/react/styles.css";
 
 type AgentBrowserProps = {
   streamUrl: string;

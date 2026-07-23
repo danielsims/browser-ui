@@ -1,5 +1,3 @@
-@import "@browser-ui/react/styles.css";
-
 :root { color-scheme: light; -webkit-tap-highlight-color: transparent; }
 * { box-sizing: border-box; }
 ::selection { color: #fff; background: #171717; }

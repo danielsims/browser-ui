@@ -14,7 +14,6 @@ npm install @browser-ui/react
 
 ```tsx
 import { Browser } from "@browser-ui/react";
-import "@browser-ui/react/styles.css";
 
 <Browser
   streamUrl={session.streamUrl}
