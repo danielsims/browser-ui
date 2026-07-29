@@ -1,0 +1,64 @@
+{
+  "name": "@browser-ui/react-native",
+  "version": "0.2.0",
+  "description": "Native browser stream UI for agent-browser sessions.",
+  "keywords": [
+    "agent-browser",
+    "expo",
+    "react-native",
+    "streaming"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/danielsims/browser-ui#readme",
+  "bugs": {
+    "url": "https://github.com/danielsims/browser-ui/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/danielsims/browser-ui.git",
+    "directory": "packages/react-native"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "react-native": "./src/index.ts",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "react-native": "./src/index.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm --filter @browser-ui/core build && tsup src/index.ts --clean --format esm,cjs --dts --external react --external react-native --external @browser-ui/core",
+    "prepack": "pnpm run build",
+    "typecheck": "pnpm --filter @browser-ui/core build && tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@browser-ui/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.81"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.8",
+    "react": "^19.2.8",
+    "react-native": "^0.83.6",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}
