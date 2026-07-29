@@ -1,0 +1,28 @@
+name: browser_ui
+description: A native Flutter transport UI for agent-browser WebSocket streams.
+version: 0.2.0
+homepage: https://github.com/danielsims/browser-ui
+repository: https://github.com/danielsims/browser-ui
+issue_tracker: https://github.com/danielsims/browser-ui/issues
+topics:
+  - agent-browser
+  - browser
+  - remote-browser
+  - streaming
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  web_socket_channel: ^3.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  shaders:
+    - shaders/operating_overlay.frag
