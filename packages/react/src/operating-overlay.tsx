@@ -93,8 +93,9 @@ export function BrowserOperatingShader() {
       gl.drawArrays(gl.TRIANGLES, 0, 3); if (!reducedMotion.matches) animationFrame = requestAnimationFrame(draw);
     };
     const restart = () => { cancelAnimationFrame(animationFrame); startedAt = 0; animationFrame = requestAnimationFrame(draw); };
-    const observer = new ResizeObserver(restart); observer.observe(canvas); reducedMotion.addEventListener("change", restart); restart();
-    return () => { cancelAnimationFrame(animationFrame); observer.disconnect(); reducedMotion.removeEventListener("change", restart); gl.deleteBuffer(buffer); gl.deleteProgram(program); gl.deleteShader(vertexShader); gl.deleteShader(fragmentShader); };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(restart);
+    observer?.observe(canvas); reducedMotion.addEventListener("change", restart); restart();
+    return () => { cancelAnimationFrame(animationFrame); observer?.disconnect(); reducedMotion.removeEventListener("change", restart); gl.deleteBuffer(buffer); gl.deleteProgram(program); gl.deleteShader(vertexShader); gl.deleteShader(fragmentShader); };
   }, []);
   return <canvas ref={canvasRef} aria-hidden className="bui-operating-shader" />;
 }
@@ -102,25 +103,30 @@ export function BrowserOperatingShader() {
 export interface BrowserOperatingOverlayProps {
   label?: string;
   onTakeControl?: () => void;
+  takeControlLabel?: string;
 }
 
-export function BrowserOperatingOverlay({ label = "Agent is operating this browser", onTakeControl }: BrowserOperatingOverlayProps) {
-  return <div className="bui-operating-overlay">
+export function BrowserOperatingOverlay({
+  label = "Agent is operating this browser",
+  onTakeControl,
+  takeControlLabel = "Take control",
+}: BrowserOperatingOverlayProps) {
+  return <div
+    aria-label={onTakeControl ? takeControlLabel : undefined}
+    className="bui-operating-overlay"
+    onClick={onTakeControl}
+    onKeyDown={(event) => {
+      if (!onTakeControl || (event.key !== "Enter" && event.key !== " ")) return;
+      event.preventDefault();
+      onTakeControl();
+    }}
+    role={onTakeControl ? "button" : undefined}
+    tabIndex={onTakeControl ? 0 : undefined}
+  >
+    <div aria-hidden className="bui-operating-fallback" />
     <BrowserOperatingShader />
     <div className="bui-operating-status">
       <span className="bui-operating-shimmer" role="status">{label}</span>
-      {onTakeControl ? <button
-        type="button"
-        aria-label="Take control of browser"
-        title="Take control"
-        onPointerDown={(event) => event.stopPropagation()}
-        onPointerUp={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          onTakeControl();
-        }}
-      >×</button> : null}
     </div>
   </div>;
 }

@@ -12,7 +12,7 @@ export interface BrowserSurfaceProps extends Omit<HTMLMotionProps<"div">, "child
 
 /** Transport-neutral viewport surface. */
 export function BrowserSurface({ children, className, loading = false, loadingFallback, overlay, ...props }: BrowserSurfaceProps) {
-  return <motion.div layout {...props} style={{ ...props.style, borderRadius: props.style?.borderRadius ?? "var(--bui-surface-radius, 7px)" }} className={["bui-surface", className].filter(Boolean).join(" ")}>
+  return <motion.div {...props} className={["bui-surface", className].filter(Boolean).join(" ")}>
     {children}
     {loading ? loadingFallback : overlay}
   </motion.div>;
