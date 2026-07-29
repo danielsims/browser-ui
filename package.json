@@ -1,11 +1,21 @@
 {
   "name": "browser-ui",
   "private": true,
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "packageManager": "pnpm@10.15.0",
   "scripts": {
-    "dev": "pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/demo dev",
-    "build": "pnpm --filter @browser-ui/demo build",
-    "typecheck": "pnpm --filter @browser-ui/react typecheck && pnpm --filter @browser-ui/demo typecheck"
+    "changeset": "changeset",
+    "dev": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/demo dev",
+    "dev:live": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/demo dev:live",
+    "build": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/session build && pnpm --filter @browser-ui/gateway build && pnpm --filter @browser-ui/source-agent-browser build && pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/react-native build && pnpm --filter @browser-ui/demo build",
+    "test": "pnpm --filter @browser-ui/core test && pnpm --filter @browser-ui/session test && pnpm --filter @browser-ui/gateway test && pnpm --filter @browser-ui/source-agent-browser test && pnpm --filter @browser-ui/react test",
+    "typecheck": "pnpm --filter @browser-ui/core typecheck && pnpm --filter @browser-ui/session typecheck && pnpm --filter @browser-ui/gateway typecheck && pnpm --filter @browser-ui/source-agent-browser typecheck && pnpm --filter @browser-ui/react typecheck && pnpm --filter @browser-ui/react-native typecheck && pnpm --filter @browser-ui/demo typecheck && pnpm --filter @browser-ui/expo-demo typecheck && pnpm --filter @browser-ui/gateway-demo typecheck",
+    "version-packages": "changeset version",
+    "release": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.31.1"
   }
 }

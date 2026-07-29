@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.2/schema.json",
+  "access": "public",
+  "baseBranch": "main",
+  "commit": false,
+  "fixed": [
+    [
+      "@browser-ui/core",
+      "@browser-ui/session",
+      "@browser-ui/gateway",
+      "@browser-ui/source-agent-browser",
+      "@browser-ui/react",
+      "@browser-ui/react-native"
+    ]
+  ],
+  "ignore": [],
+  "linked": [],
+  "privatePackages": {
+    "version": false,
+    "tag": false
+  },
+  "updateInternalDependencies": "patch"
+}

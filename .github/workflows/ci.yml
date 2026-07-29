@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: npm pack --dry-run
+        working-directory: packages/core
+      - run: npm pack --dry-run
+        working-directory: packages/session
+      - run: npm pack --dry-run
+        working-directory: packages/gateway
+      - run: npm pack --dry-run
+        working-directory: packages/source-agent-browser
+      - run: npm pack --dry-run
+        working-directory: packages/react
+      - run: npm pack --dry-run
+        working-directory: packages/react-native
+
+  flutter:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/flutter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: dart pub publish --dry-run
