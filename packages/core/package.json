@@ -1,0 +1,46 @@
+{
+  "name": "@browser-ui/core",
+  "version": "0.2.0",
+  "description": "Runtime-neutral protocol and access-control contracts for Browser UI.",
+  "keywords": [
+    "agent-browser",
+    "browser",
+    "protocol",
+    "streaming"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/danielsims/browser-ui#readme",
+  "bugs": {
+    "url": "https://github.com/danielsims/browser-ui/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/danielsims/browser-ui.git",
+    "directory": "packages/core"
+  },
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --clean --format esm,cjs --dts",
+    "prepack": "pnpm run build",
+    "test": "pnpm run build && node --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}
