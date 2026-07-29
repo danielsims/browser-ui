@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["DOM", "ES2022"],
+    "types": ["node"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@browser-ui/core": ["../core/src/index.ts"],
+      "@browser-ui/session": ["../session/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

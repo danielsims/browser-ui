@@ -1,0 +1,23 @@
+{
+  "name": "@browser-ui/gateway-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "benchmark:live": "node scripts/benchmark-live.mjs",
+    "dev": "tsx src/server.ts",
+    "local:session": "node scripts/local-session.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@browser-ui/gateway": "workspace:*",
+    "@browser-ui/session": "workspace:*",
+    "@browser-ui/source-agent-browser": "workspace:*",
+    "agent-browser": "0.32.3",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

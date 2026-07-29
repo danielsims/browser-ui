@@ -1,0 +1,50 @@
+{
+  "name": "@browser-ui/gateway",
+  "version": "0.2.0",
+  "description": "Authenticated view-only fanout gateway for remote browser sessions.",
+  "keywords": [
+    "agent-browser",
+    "browser",
+    "gateway",
+    "streaming"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/danielsims/browser-ui#readme",
+  "bugs": {
+    "url": "https://github.com/danielsims/browser-ui/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/danielsims/browser-ui.git",
+    "directory": "packages/gateway"
+  },
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm --filter @browser-ui/session build && tsup src/index.ts --clean --format esm --dts",
+    "prepack": "pnpm run build",
+    "test": "pnpm run build && node --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@browser-ui/session": "workspace:*",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/ws": "^8.18.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}
