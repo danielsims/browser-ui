@@ -7,13 +7,20 @@ const execFileAsync = promisify(execFile);
 const encoder = new TextEncoder();
 type Subscriber = ReadableStreamDefaultController<Uint8Array>;
 type WorkflowEvent = Record<string, unknown> & { type: string };
-interface DemoRuntime { generation: number; subscribers: Set<Subscriber>; abortController?: AbortController }
+interface DemoRuntime { generation: number; subscribers: Set<Subscriber>; abortController?: AbortController; exclusiveRun?: boolean }
 
 const runtimeGlobal = globalThis as typeof globalThis & { __browserUiDemoRuntime?: DemoRuntime };
 const runtime = runtimeGlobal.__browserUiDemoRuntime ??= { generation: 0, subscribers: new Set() };
 
-function publish(event: WorkflowEvent) {
-  const payload = encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
+function authorizedLocalDemo(request: Request) {
+  const token = process.env.BROWSER_UI_DEMO_TOKEN;
+  if (process.env.NODE_ENV !== "development" || !token) return false;
+  return request.headers.get("x-browser-ui-demo-token") === token ||
+    new URL(request.url).searchParams.get("token") === token;
+}
+
+function publish(event: WorkflowEvent, generation?: number) {
+  const payload = encoder.encode(`data: ${JSON.stringify({ ...event, ...(generation === undefined ? {} : { runId: generation }) })}\n\n`);
   for (const subscriber of runtime.subscribers) {
     try { subscriber.enqueue(payload); }
     catch { runtime.subscribers.delete(subscriber); }
@@ -26,7 +33,7 @@ async function command<T extends Record<string, unknown> = Record<string, unknow
   const entry = process.env.AGENT_BROWSER_ENTRY;
   const sessionId = process.env.AGENT_BROWSER_SESSION_ID;
   const downloadPath = process.env.AGENT_BROWSER_DOWNLOAD_PATH;
-  if (!entry || !sessionId || !downloadPath) throw new Error("The live demo browser is available through `pnpm dev` only.");
+  if (!entry || !sessionId || !downloadPath) throw new Error("The live demo browser is available through `pnpm dev:live` only.");
   const { stdout } = await execFileAsync(process.execPath, [
     entry,
     "--session", sessionId,
@@ -59,13 +66,50 @@ async function moveCursor(workflow: DemoWorkflow, selector: string, generation: 
       variant: "dark",
       visible: true,
     },
-  });
+  }, generation);
   await wait(780);
   assertActive(generation);
 }
 
-function setCursorPressed(workflow: DemoWorkflow, pressed: boolean, typing = false) {
-  publish({ type: "cursor-state", workflowId: workflow.id, pressed, typing });
+async function waitForTargetToSettle(selector: string, generation: number) {
+  let previous: { left: number; top: number; width: number; height: number; scrollX: number; scrollY: number } | undefined;
+  let stableSamples = 0;
+  const deadline = Date.now() + 3_500;
+  const source = `(() => {
+    const element = document.querySelector(${JSON.stringify(selector)});
+    if (!element) throw new Error("Target not found");
+    const bounds = element.getBoundingClientRect();
+    return {
+      left: bounds.left,
+      top: bounds.top,
+      width: bounds.width,
+      height: bounds.height,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY
+    };
+  })()`;
+  while (Date.now() < deadline) {
+    assertActive(generation);
+    const { result } = await command<{ result: typeof previous }>(["eval", source]);
+    if (result && previous) {
+      const movement = Math.max(
+        Math.abs(result.left - previous.left),
+        Math.abs(result.top - previous.top),
+        Math.abs(result.width - previous.width),
+        Math.abs(result.height - previous.height),
+        Math.abs(result.scrollX - previous.scrollX),
+        Math.abs(result.scrollY - previous.scrollY),
+      );
+      stableSamples = movement < 1 ? stableSamples + 1 : 0;
+      if (stableSamples >= 3) return;
+    }
+    previous = result;
+    await wait(120);
+  }
+}
+
+function setCursorPressed(workflow: DemoWorkflow, pressed: boolean, generation: number, typing = false) {
+  publish({ type: "cursor-state", workflowId: workflow.id, pressed, typing }, generation);
 }
 
 async function scrollTarget(selector: string, generation: number, always = false) {
@@ -78,7 +122,7 @@ async function scrollTarget(selector: string, generation: number, always = false
     return outsideViewport;
   })()`;
   await command(["eval", source]);
-  await wait(always ? 720 : 560);
+  await waitForTargetToSettle(selector, generation);
   assertActive(generation);
 }
 
@@ -94,11 +138,21 @@ async function waitForSelector(selector: string, generation: number, timeout: nu
   throw new Error(`Timed out waiting for ${selector}`);
 }
 
-async function indexedSelector(selector: string, index: number, generation: number) {
+async function indexedSelector(selector: string, index: number, generation: number, withinSelector?: string) {
   const marker = `browser-ui-${generation}-${index}`;
   const source = `(() => {
     document.querySelectorAll("[data-browser-ui-target]").forEach((element) => element.removeAttribute("data-browser-ui-target"));
-    const element = document.querySelectorAll(${JSON.stringify(selector)})[${index}];
+    const indexedElement = document.querySelectorAll(${JSON.stringify(selector)})[${index}];
+    const element = ${withinSelector
+      ? `Array.from(indexedElement?.querySelectorAll(${JSON.stringify(withinSelector)}) ?? [])
+        .reduce((largest, candidate) => {
+          const bounds = candidate.getBoundingClientRect();
+          const largestBounds = largest?.getBoundingClientRect();
+          return !largestBounds || bounds.width * bounds.height > largestBounds.width * largestBounds.height
+            ? candidate
+            : largest;
+        }, undefined)`
+      : "indexedElement"};
     if (!element) throw new Error("Indexed target not found");
     element.setAttribute("data-browser-ui-target", ${JSON.stringify(marker)});
     return true;
@@ -122,26 +176,45 @@ async function textSelector(role: string, text: string, generation: number) {
   return `[data-browser-ui-target=${JSON.stringify(marker)}]`;
 }
 
-async function clickTarget(workflow: DemoWorkflow, selector: string, generation: number, activation: "pointer" | "programmatic" | "same-tab" = "pointer", index?: number) {
+async function clickTarget(
+  workflow: DemoWorkflow,
+  selector: string,
+  generation: number,
+  activation: "pointer" | "programmatic" | "same-tab" = "pointer",
+  index?: number,
+  cursorSelector?: string,
+  cursorIndex?: number,
+  cursorWithinSelector?: string,
+) {
+  const visualSelector = cursorSelector
+    ? cursorIndex === undefined
+      ? cursorSelector
+      : await indexedSelector(cursorSelector, cursorIndex, generation, cursorWithinSelector)
+    : index === undefined
+      ? selector
+      : await indexedSelector(selector, index, generation);
+  await scrollTarget(visualSelector, generation);
+  await moveCursor(workflow, visualSelector, generation);
   const resolvedSelector = index === undefined ? selector : await indexedSelector(selector, index, generation);
-  await scrollTarget(resolvedSelector, generation);
-  await moveCursor(workflow, resolvedSelector, generation);
-  setCursorPressed(workflow, true);
+  setCursorPressed(workflow, true, generation);
   await wait(150);
   assertActive(generation);
-  if (activation === "programmatic") {
-    await command(["eval", `document.querySelector(${JSON.stringify(resolvedSelector)})?.click(); true`]);
-  } else if (activation === "same-tab") {
-    await command(["eval", `(() => {
-      const element = document.querySelector(${JSON.stringify(resolvedSelector)});
-      if (!(element instanceof HTMLAnchorElement) || !element.href) throw new Error("Navigation target not found");
-      location.assign(element.href);
-      return true;
-    })()`]);
-  } else {
-    await command(["click", resolvedSelector]);
+  try {
+    if (activation === "programmatic") {
+      await command(["eval", `document.querySelector(${JSON.stringify(resolvedSelector)})?.click(); true`]);
+    } else if (activation === "same-tab") {
+      await command(["eval", `(() => {
+        const element = document.querySelector(${JSON.stringify(resolvedSelector)});
+        if (!(element instanceof HTMLAnchorElement) || !element.href) throw new Error("Navigation target not found");
+        location.assign(element.href);
+        return true;
+      })()`]);
+    } else {
+      await command(["click", resolvedSelector]);
+    }
+  } finally {
+    setCursorPressed(workflow, false, generation);
   }
-  setCursorPressed(workflow, false);
 }
 
 async function selectRelativeDates(workflow: DemoWorkflow, leadDays: number, nights: number, generation: number) {
@@ -163,7 +236,7 @@ async function selectRelativeDates(workflow: DemoWorkflow, leadDays: number, nig
 async function typeInto(workflow: DemoWorkflow, selector: string, value: string, generation: number) {
   await scrollTarget(selector, generation);
   await moveCursor(workflow, selector, generation, true);
-  setCursorPressed(workflow, true, true);
+  setCursorPressed(workflow, true, generation, true);
   await wait(100);
   await command(["eval", `(() => {
     const element = document.querySelector(${JSON.stringify(selector)});
@@ -172,15 +245,15 @@ async function typeInto(workflow: DemoWorkflow, selector: string, value: string,
     element.select();
     return true;
   })()`]);
-  setCursorPressed(workflow, false, true);
+  setCursorPressed(workflow, false, generation, true);
   assertActive(generation);
   await command(["fill", selector, value]);
   await wait(180);
-  setCursorPressed(workflow, false, false);
+  setCursorPressed(workflow, false, generation, false);
 }
 
 async function smoothScroll(workflow: DemoWorkflow, direction: "up" | "down", amount: number, generation: number) {
-  publish({ type: "cursor", workflowId: workflow.id, cursor: { x: .91, y: .8, variant: "dark", visible: true } });
+  publish({ type: "cursor", workflowId: workflow.id, cursor: { x: .91, y: .8, variant: "dark", visible: true } }, generation);
   const signedAmount = direction === "down" ? amount : -amount;
   const increments = 7;
   for (let index = 0; index < increments; index += 1) {
@@ -188,17 +261,59 @@ async function smoothScroll(workflow: DemoWorkflow, direction: "up" | "down", am
     await command(["mouse", "wheel", String(Math.round(signedAmount / increments))]);
     await wait(80);
   }
+  await wait(240);
+  assertActive(generation);
+}
+
+async function smoothScrollToTarget(workflow: DemoWorkflow, selector: string, generation: number) {
+  publish({ type: "cursor", workflowId: workflow.id, cursor: { x: .91, y: .8, variant: "dark", visible: true } }, generation);
+  const source = `(() => {
+    const element = document.querySelector(${JSON.stringify(selector)});
+    if (!element) throw new Error("Target not found");
+    const bounds = element.getBoundingClientRect();
+    const topEdge = 96;
+    const bottomEdge = window.innerHeight - 96;
+    if (bounds.top < topEdge) return bounds.top - topEdge;
+    if (bounds.bottom > bottomEdge) return bounds.bottom - bottomEdge;
+    return 0;
+  })()`;
+  let stalledSamples = 0;
+  let previousDistance = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < 32; index += 1) {
+    assertActive(generation);
+    const { result: distance } = await command<{ result: number }>(["eval", source]);
+    if (!Number.isFinite(distance) || Math.abs(distance) < 4) break;
+    const absoluteDistance = Math.abs(distance);
+    stalledSamples = absoluteDistance >= previousDistance - 2 ? stalledSamples + 1 : 0;
+    if (stalledSamples >= 3) break;
+    previousDistance = absoluteDistance;
+    const delta = Math.sign(distance) * Math.min(160, absoluteDistance, Math.max(24, absoluteDistance * .28));
+    await command(["mouse", "wheel", String(Math.round(delta))]);
+    await wait(70);
+  }
+  await command(["eval", `document.querySelector(${JSON.stringify(selector)})?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" }); true`]);
+  await waitForTargetToSettle(selector, generation);
+  assertActive(generation);
 }
 
 async function executeStep(workflow: DemoWorkflow, step: WorkflowStep, generation: number) {
   if (step.action === "open") {
-    publish({ type: "cursor", workflowId: workflow.id, cursor: { x: .5, y: .48, visible: false } });
+    publish({ type: "cursor", workflowId: workflow.id, cursor: { x: .5, y: .48, visible: false } }, generation);
     await command(["open", step.url]);
   } else if (step.action === "reset-page") {
     await command(["eval", "localStorage.clear(); sessionStorage.clear(); location.reload(); true"]);
   } else if (step.action === "click") {
     try {
-      await clickTarget(workflow, step.selector, generation, step.activation, step.index);
+      await clickTarget(
+        workflow,
+        step.selector,
+        generation,
+        step.activation,
+        step.index,
+        step.cursorSelector,
+        step.cursorIndex,
+        step.cursorWithinSelector,
+      );
       if (step.waitFor) {
         try { await waitForSelector(step.waitFor, generation, step.waitTimeout ?? 10_000); }
         catch (error) {
@@ -222,7 +337,7 @@ async function executeStep(workflow: DemoWorkflow, step: WorkflowStep, generatio
   } else if (step.action === "press") {
     await command(["press", step.key]);
   } else if (step.action === "scroll-into-view") {
-    await scrollTarget(step.selector, generation, true);
+    await smoothScrollToTarget(workflow, step.selector, generation);
     await moveCursor(workflow, step.selector, generation);
   } else {
     await smoothScroll(workflow, step.direction, step.amount, generation);
@@ -231,33 +346,39 @@ async function executeStep(workflow: DemoWorkflow, step: WorkflowStep, generatio
   assertActive(generation);
 }
 
-async function runWorkflow(workflowId: string) {
+async function runWorkflow(workflowId: string, captureId?: string) {
   const workflow = workflows.find((candidate) => candidate.id === workflowId);
   if (!workflow) throw new Error("Unknown demo workflow");
+  if (runtime.exclusiveRun) throw new Error("A recording capture is already running");
+  if (captureId) runtime.exclusiveRun = true;
   runtime.abortController?.abort();
   const abortController = new AbortController();
   runtime.abortController = abortController;
   const generation = ++runtime.generation;
-  publish({ type: "start", workflowId: workflow.id, total: workflow.steps.length });
+  publish({ type: "start", workflowId: workflow.id, total: workflow.steps.length, ...(captureId ? { captureId } : {}) }, generation);
   try {
     for (let index = 0; index < workflow.steps.length; index += 1) {
       const step = workflow.steps[index];
       assertActive(generation);
-      publish({ type: "step", workflowId: workflow.id, index, total: workflow.steps.length, label: step.label });
+      publish({ type: "step", workflowId: workflow.id, index, total: workflow.steps.length, label: step.label }, generation);
       await executeStep(workflow, step, generation);
     }
-    publish({ type: "cursor", workflowId: workflow.id, cursor: { x: .5, y: .5, visible: false } });
-    publish({ type: "complete", workflowId: workflow.id, outcome: workflow.outcome });
+    publish({ type: "cursor", workflowId: workflow.id, cursor: { x: .5, y: .5, visible: false } }, generation);
+    publish({ type: "complete", workflowId: workflow.id, outcome: workflow.outcome }, generation);
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") return;
-    publish({ type: "error", workflowId: workflow.id, message: error instanceof Error ? error.message : "Workflow failed" });
+    publish({ type: "error", workflowId: workflow.id, message: error instanceof Error ? error.message : "Workflow failed" }, generation);
     throw error;
   } finally {
     if (runtime.abortController === abortController) runtime.abortController = undefined;
+    if (captureId) runtime.exclusiveRun = false;
   }
 }
 
 export async function GET(request: Request) {
+  if (!authorizedLocalDemo(request)) {
+    return NextResponse.json({ error: "Live demo unavailable" }, { status: 404 });
+  }
   let controller: Subscriber | undefined;
   let ping: ReturnType<typeof setInterval> | undefined;
   let closed = false;
@@ -290,9 +411,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!authorizedLocalDemo(request)) {
+    return NextResponse.json({ error: "Live demo unavailable" }, { status: 404 });
+  }
   try {
-    const body = await request.json() as { action?: string; workflowId?: string; url?: string; width?: number; height?: number };
-    if (body.action === "run-workflow" && body.workflowId) await runWorkflow(body.workflowId);
+    const body = await request.json() as { action?: string; workflowId?: string; captureId?: string; url?: string; width?: number; height?: number };
+    if (body.action === "run-workflow" && body.workflowId) await runWorkflow(body.workflowId, body.captureId);
     else if (body.action === "cancel-workflow") {
       runtime.abortController?.abort();
       runtime.abortController = undefined;

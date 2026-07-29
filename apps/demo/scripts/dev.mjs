@@ -1,18 +1,24 @@
 import { execFile } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { createServer } from "node:net";
-import { tmpdir } from "node:os";
+import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
 const agentBrowserEntry = require.resolve("agent-browser/bin/agent-browser.js");
-const sessionId = `browser-ui-demo-${process.pid}`;
+const sessionId = process.env.AGENT_BROWSER_SESSION_ID ?? `browser-ui-demo-${process.pid}`;
+const demoToken = process.env.BROWSER_UI_DEMO_TOKEN ?? randomUUID();
 const sessionDirectory = await mkdtemp(join(tmpdir(), "browser-ui-demo-"));
 const initialUrl = process.env.BROWSER_UI_DEMO_URL ?? "https://www.apple.com/mac/";
+const port = Number.parseInt(process.env.BROWSER_UI_DEMO_PORT ?? process.env.PORT ?? "3000", 10);
+const localDevelopmentOrigins = Object.values(networkInterfaces())
+  .flat()
+  .filter((address) => address?.family === "IPv4" && !address.internal)
+  .map((address) => address.address);
 
 const command = async (...args) => {
   const { stdout } = await execFileAsync(process.execPath, [
@@ -28,15 +34,6 @@ const command = async (...args) => {
   return envelope?.data ?? envelope;
 };
 
-const openPort = () => new Promise((resolve, reject) => {
-  const server = createServer();
-  server.once("error", reject);
-  server.listen(0, "127.0.0.1", () => {
-    const address = server.address();
-    server.close((error) => error ? reject(error) : resolve(address.port));
-  });
-});
-
 let child;
 let closing = false;
 const cleanup = async () => {
@@ -47,18 +44,24 @@ const cleanup = async () => {
 };
 
 try {
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error("BROWSER_UI_DEMO_PORT must be a valid TCP port.");
+  }
   process.stdout.write(`Opening real agent-browser session at ${initialUrl}\n`);
   await command("open", initialUrl);
   await command("set", "viewport", "1280", "800");
   const stream = await command("stream", "status");
   if (!stream.enabled || !stream.port) throw new Error("agent-browser did not expose a stream port");
-  const port = await openPort();
   child = spawn("pnpm", ["exec", "next", "dev", "--port", String(port)], {
     env: {
       ...process.env,
       NEXT_DIST_DIR: `.next-dev-${port}`,
+      NEXT_ALLOWED_DEV_ORIGINS: localDevelopmentOrigins.join(","),
       NEXT_PUBLIC_BROWSER_STREAM_URL: `ws://127.0.0.1:${stream.port}`,
       NEXT_PUBLIC_BROWSER_INITIAL_URL: initialUrl,
+      NEXT_PUBLIC_BROWSER_DEMO_MODE: "live",
+      NEXT_PUBLIC_BROWSER_DEMO_TOKEN: demoToken,
+      BROWSER_UI_DEMO_TOKEN: demoToken,
       AGENT_BROWSER_ENTRY: agentBrowserEntry,
       AGENT_BROWSER_SESSION_ID: sessionId,
       AGENT_BROWSER_DOWNLOAD_PATH: sessionDirectory,

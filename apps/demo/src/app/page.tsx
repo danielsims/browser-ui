@@ -4,24 +4,20 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { motion } from "motion/react";
 import {
   Browser,
-  BrowserDisplayControls,
-  BrowserFullscreenTrigger,
-  BrowserOperatingOverlay,
-  BrowserPictureInPictureTrigger,
-  BrowserRoot,
-  BrowserSurface,
+  BrowserRecording,
   type BrowserAgentCursorState,
   type BrowserDisplayMode,
   type BrowserViewportStatus,
 } from "@browser-ui/react";
 import { FaGithub } from "react-icons/fa";
 import { workflows, type WorkflowId } from "../workflows";
+import { BrowserStreamReplay } from "./stream-replay";
 
 const desktopViewport = { width: 1440, height: 900 } as const;
 const enterPictureInPictureAt = .24;
 const returnInlineAt = .52;
 const workflowTransitionDelayMs = 2_400;
-const recordedPlaybackRate = 2.25;
+const recordedPlaybackRate = 1;
 
 const usageCode = `import { Browser } from "@browser-ui/react";
 
@@ -70,6 +66,8 @@ const propGroups = [
       ["operating", "boolean · false", "Shows the activity shader and pauses direct viewport input while the agent owns the session."],
       ["operatingLabel", "string", "Current action displayed in the compact status control."],
       ["agentCursor", "BrowserAgentCursorState", "Normalized cursor position and pressed or typing state for visualizing live or recorded agent actions."],
+      ["agentCursor.size", "number · 24", "Controls the rendered cursor width in CSS pixels."],
+      ["agentCursor.backgroundColor", "CSS color · #2f6bff", "Controls the soft radial glow beneath the cursor."],
       ["onTakeControl", "() => void", "Called when the person stops the workflow and takes ownership of browser input."],
       ["loadingLabel", "string", "Copy shown while the WebSocket is connecting or reconnecting."],
     ],
@@ -81,6 +79,7 @@ const propGroups = [
       ["showControls", "boolean · false", "Adds the optional address and reload controls."],
       ["showPictureInPicture", "boolean · false", "Adds the floating picture-in-picture control."],
       ["showFullscreen", "boolean · false", "Adds application fullscreen without changing the remote viewport size."],
+      ["fullscreenTarget", "HTMLElement | null", "Constrains fullscreen to a host element and tracks its bounds and border radius."],
       ["mode", '"inline" | "picture-in-picture" | "fullscreen"', "Controls the display mode from your application."],
       ["defaultMode", 'display mode · "inline"', "Initial display mode when Browser manages its own state."],
       ["onModeChange", "(mode) => void", "Reports transitions between inline, PiP and fullscreen."],
@@ -137,9 +136,13 @@ function CodeBlock({ code, filename }: { code: string; filename: string }) {
 }
 
 async function browserCommand(body: Record<string, unknown>) {
+  const demoToken = process.env.NEXT_PUBLIC_BROWSER_DEMO_TOKEN;
   const response = await fetch("/api/browser", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      ...(demoToken ? { "x-browser-ui-demo-token": demoToken } : {}),
+    },
     body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error((await response.json() as { error?: string }).error ?? "Browser command failed");
@@ -149,48 +152,47 @@ function RecordedBrowserPreview({
   label,
   onEnded,
   onModeChange,
+  operating,
   playbackKey,
+  poster,
   src,
+  startTime,
+  timeline,
   mode,
 }: {
   label: string;
   onEnded: () => void;
   onModeChange: (mode: BrowserDisplayMode) => void;
+  operating: boolean;
   playbackKey: number;
+  poster: string;
   src: string;
+  startTime: number;
+  timeline?: (typeof workflows)[number]["previewTimeline"];
   mode: BrowserDisplayMode;
 }) {
-  return <BrowserRoot mode={mode} onModeChange={onModeChange}>
-    <BrowserSurface
-      className="recorded-browser-surface"
-      overlay={<BrowserOperatingOverlay label={label} />}
-      style={{ aspectRatio: "16 / 10" }}
-    >
-      <video
-        aria-label="Recorded browser workflow preview"
-        autoPlay
-        className="recorded-browser-preview"
-        key={`${src}-${playbackKey}`}
-        muted
-        onLoadedMetadata={(event) => {
-          event.currentTarget.defaultPlaybackRate = recordedPlaybackRate;
-          event.currentTarget.playbackRate = recordedPlaybackRate;
-        }}
-        onEnded={onEnded}
-        playsInline
-        preload="auto"
-        src={src}
-      />
-    </BrowserSurface>
-    <BrowserDisplayControls>
-      <BrowserPictureInPictureTrigger />
-      <BrowserFullscreenTrigger />
-    </BrowserDisplayControls>
-  </BrowserRoot>;
+  return <BrowserRecording
+    key={`${src}-${playbackKey}`}
+    mode={mode}
+    onModeChange={onModeChange}
+    operating={operating}
+    operatingLabel={label}
+    onEnded={onEnded}
+    playbackRate={recordedPlaybackRate}
+    preload="auto"
+    showFullscreen
+    showPictureInPicture
+    src={src}
+    startTime={startTime}
+    timeline={timeline}
+    videoProps={{ poster }}
+    viewportSize={desktopViewport}
+  />;
 }
 
 export default function Home() {
   const streamUrl = process.env.NEXT_PUBLIC_BROWSER_STREAM_URL;
+  const previewMode = process.env.NEXT_PUBLIC_BROWSER_DEMO_MODE === "live" ? "live" : "recording";
   const initialWorkflow = workflows[0];
   const initialUrl = process.env.NEXT_PUBLIC_BROWSER_INITIAL_URL ?? initialWorkflow.startUrl;
   const [workflowId, setWorkflowId] = useState<WorkflowId>(initialWorkflow.id);
@@ -211,6 +213,9 @@ export default function Home() {
   const startedInitialWorkflow = useRef(false);
   const autoAdvanceTimer = useRef<number | null>(null);
   const workflow = workflows.find((item) => item.id === workflowId) ?? initialWorkflow;
+  const activeStreamUrl = previewMode === "live" ? streamUrl : undefined;
+  const livePreview = Boolean(activeStreamUrl);
+  const frameReplayEnabled = process.env.NEXT_PUBLIC_FRAME_REPLAY === "true";
 
   const resize = useCallback((width: number, height: number) => {
     if (resizeTimer.current) window.clearTimeout(resizeTimer.current);
@@ -236,7 +241,7 @@ export default function Home() {
 
   const playRecordedWorkflow = useCallback((nextWorkflow: (typeof workflows)[number]) => {
     setWorkflowId(nextWorkflow.id);
-    setOperating(false);
+    setOperating(true);
     setActionLabel(nextWorkflow.steps[0].label);
     setAgentCursor({ x: .5, y: .5, visible: false });
     setPreviewPlaybackKey((current) => current + 1);
@@ -249,20 +254,21 @@ export default function Home() {
     }
     workflowRun.current += 1;
     setOperating(false);
-    setAgentCursor((current) => ({ ...current, visible: false, pressed: false, typing: false }));
+    setAgentCursor((current: BrowserAgentCursorState) => ({ ...current, visible: false, pressed: false, typing: false }));
     void browserCommand({ action: "cancel-workflow" }).catch(() => undefined);
   }, []);
 
   useEffect(() => {
-    if (!streamUrl) return;
-    const events = new EventSource("/api/browser");
+    if (!livePreview) return;
+    const demoToken = process.env.NEXT_PUBLIC_BROWSER_DEMO_TOKEN;
+    const events = new EventSource(`/api/browser${demoToken ? `?token=${encodeURIComponent(demoToken)}` : ""}`);
     events.onmessage = (message) => {
       const event = JSON.parse(message.data) as WorkflowMessage;
       if (event.workflowId && event.workflowId !== activeWorkflow.current) return;
       if (event.type === "start") setOperating(true);
       else if (event.type === "step" && event.label) setActionLabel(event.label);
       else if (event.type === "cursor" && event.cursor) setAgentCursor(event.cursor);
-      else if (event.type === "cursor-state") setAgentCursor((current) => ({ ...current, pressed: event.pressed, typing: event.typing }));
+      else if (event.type === "cursor-state") setAgentCursor((current: BrowserAgentCursorState) => ({ ...current, pressed: event.pressed, typing: event.typing }));
       else if (event.type === "complete") {
         setOperating(false);
         const completedWorkflowId = event.workflowId ?? activeWorkflow.current;
@@ -275,7 +281,7 @@ export default function Home() {
         }, workflowTransitionDelayMs);
       } else if (event.type === "cancel") {
         setOperating(false);
-        setAgentCursor((current) => ({ ...current, visible: false }));
+        setAgentCursor((current: BrowserAgentCursorState) => ({ ...current, visible: false }));
       } else if (event.type === "error") {
         setOperating(false);
       }
@@ -287,21 +293,26 @@ export default function Home() {
         autoAdvanceTimer.current = null;
       }
     };
-  }, [runWorkflow, streamUrl]);
+  }, [livePreview, runWorkflow]);
 
   useEffect(() => {
-    if (status !== "connected" || startedInitialWorkflow.current) return;
+    if (!livePreview || status !== "connected" || startedInitialWorkflow.current) return;
     startedInitialWorkflow.current = true;
     void runWorkflow(initialWorkflow);
-  }, [runWorkflow, status, initialWorkflow]);
+  }, [initialWorkflow, livePreview, runWorkflow, status]);
 
   useEffect(() => {
     const preview = previewRef.current;
     if (!preview) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      const hasScrolledPastPreview = entry.boundingClientRect.top < 0;
-      const shouldFloat = hasScrolledPastPreview && entry.intersectionRatio <= enterPictureInPictureAt;
-      const shouldReturn = entry.intersectionRatio >= returnInlineAt;
+    let animationFrame = 0;
+    const updateMode = () => {
+      animationFrame = 0;
+      const bounds = preview.getBoundingClientRect();
+      const visibleHeight = Math.max(0, Math.min(bounds.bottom, window.innerHeight) - Math.max(bounds.top, 0));
+      const visibleRatio = visibleHeight / Math.max(bounds.height, 1);
+      const hasScrolledPastPreview = bounds.top < 0;
+      const shouldFloat = hasScrolledPastPreview && visibleRatio <= enterPictureInPictureAt;
+      const shouldReturn = visibleRatio >= returnInlineAt;
 
       if (shouldReturn) {
         suppressAutoPictureInPicture.current = false;
@@ -317,9 +328,23 @@ export default function Home() {
         displayModeRef.current = "picture-in-picture";
         setDisplayMode("picture-in-picture");
       }
-    }, { threshold: [0, enterPictureInPictureAt, returnInlineAt, 1] });
+    };
+    const scheduleUpdate = () => {
+      if (!animationFrame) animationFrame = window.requestAnimationFrame(updateMode);
+    };
+    const observer = new IntersectionObserver(scheduleUpdate, {
+      threshold: [0, enterPictureInPictureAt, returnInlineAt, 1],
+    });
     observer.observe(preview);
-    return () => observer.disconnect();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    scheduleUpdate();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+    };
   }, []);
 
   const changeDisplayMode = useCallback((nextMode: BrowserDisplayMode) => {
@@ -337,9 +362,9 @@ export default function Home() {
   }, []);
 
   const selectWorkflow = useCallback((nextWorkflow: (typeof workflows)[number]) => {
-    if (streamUrl) void runWorkflow(nextWorkflow);
+    if (livePreview) void runWorkflow(nextWorkflow);
     else playRecordedWorkflow(nextWorkflow);
-  }, [playRecordedWorkflow, runWorkflow, streamUrl]);
+  }, [livePreview, playRecordedWorkflow, runWorkflow]);
 
   const advanceRecordedPreview = useCallback(() => {
     const completedIndex = workflows.findIndex((item) => item.id === workflowId);
@@ -347,17 +372,17 @@ export default function Home() {
     playRecordedWorkflow(nextWorkflow);
   }, [playRecordedWorkflow, workflowId]);
 
-  return <main>
+  return <main className="demo-page" data-browser-mode={displayMode}>
     <section className="intro">
       <h1>Browser</h1>
-      <p>A composable React viewport for agent-browser. Stream a real session, visualize agent actions and hand control to a person without changing transports.</p>
+      <p>A composable React viewport for <a className="intro-link" href="https://agent-browser.dev/">agent-browser</a>. Stream a real session, visualize agent actions and hand control to a person without changing transports.</p>
       <div className="command"><code>pnpm add @browser-ui/react</code><button type="button" onClick={() => navigator.clipboard?.writeText("pnpm add @browser-ui/react")}>Copy</button></div>
     </section>
 
     <section className="demo">
       <div className="demo-preview" ref={previewRef}>
-        {streamUrl ? <Browser
-          streamUrl={streamUrl}
+        {activeStreamUrl ? <Browser
+          streamUrl={activeStreamUrl}
           viewportSize={desktopViewport}
           url={liveUrl}
           operating={operating}
@@ -373,14 +398,25 @@ export default function Home() {
           onUrlChange={setLiveUrl}
           onViewportResize={resize}
           onStatusChange={setStatus}
+        /> : frameReplayEnabled ? <BrowserStreamReplay
+          key={workflow.id}
+          mode={displayMode}
+          onModeChange={changeDisplayMode}
+          onTakeControl={cancelWorkflow}
+          operating={operating}
+          manifestSrc={workflow.replayManifestSrc}
         /> : <RecordedBrowserPreview
           key={workflow.id}
           label={actionLabel}
           mode={displayMode}
           onEnded={advanceRecordedPreview}
           onModeChange={changeDisplayMode}
+          operating={operating}
           playbackKey={previewPlaybackKey}
+          poster={workflow.previewPosterSrc}
           src={workflow.previewSrc}
+          startTime={workflow.previewStartTime}
+          timeline={workflow.previewTimeline}
         />}
       </div>
 
@@ -412,7 +448,7 @@ export default function Home() {
         </div>
         <div className="workflow-detail">
           <p>{workflow.description}</p>
-          <button className="replay" type="button" disabled={Boolean(streamUrl && operating)} onClick={() => selectWorkflow(workflow)}>Replay</button>
+          <button className="replay" type="button" disabled={Boolean(livePreview && operating)} onClick={() => selectWorkflow(workflow)}>Replay</button>
         </div>
       </div>
     </section>

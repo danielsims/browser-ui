@@ -1,7 +1,26 @@
+import type { BrowserRecordingTimelineEvent } from "@browser-ui/react";
+import configureMacMiniTimeline from "../public/previews/configure-mac-mini.timeline.json";
+import findTokyoStayTimeline from "../public/previews/find-tokyo-stay.timeline.json";
+
 export type WorkflowStep =
   | { action: "open"; label: string; url: string; wait?: number }
   | { action: "reset-page"; label: string; wait?: number }
-  | { action: "click"; label: string; selector: string; index?: number; activation?: "pointer" | "programmatic" | "same-tab"; waitFor?: string; waitTimeout?: number; fallbackUrl?: string; wait?: number; optional?: boolean }
+  | {
+      action: "click";
+      label: string;
+      selector: string;
+      index?: number;
+      /** Optional visual target when the click affordance sits away from the meaningful content. */
+      cursorSelector?: string;
+      cursorIndex?: number;
+      cursorWithinSelector?: string;
+      activation?: "pointer" | "programmatic" | "same-tab";
+      waitFor?: string;
+      waitTimeout?: number;
+      fallbackUrl?: string;
+      wait?: number;
+      optional?: boolean;
+    }
   | { action: "click-text"; label: string; role: string; text: string; wait?: number; optional?: boolean }
   | { action: "select-dates"; label: string; leadDays: number; nights: number; wait?: number }
   | { action: "type"; label: string; selector: string; text: string; wait?: number }
@@ -16,8 +35,14 @@ export interface DemoWorkflow {
   description: string;
   outcome: string;
   startUrl: string;
-  /** A bundled capture used by the public demo when no live stream is configured. */
+  /** Exact agent-browser stream capture used when no live stream is configured. */
+  replayManifestSrc: string;
+  /** Compact WebM fallback used until a static frame replay has been captured. */
   previewSrc: string;
+  previewPosterSrc: string;
+  previewStartTime: number;
+  /** Agent action and cursor timeline captured alongside the preview video. */
+  previewTimeline?: readonly BrowserRecordingTimelineEvent[];
   steps: readonly WorkflowStep[];
 }
 
@@ -30,7 +55,11 @@ export const workflows = [
     description: "Find Mac mini, configure the desktop and a Studio Display, then hand the live session back at Apple’s final review.",
     outcome: "Mac mini and Studio Display configured for final review",
     startUrl: "https://www.apple.com/",
-    previewSrc: "/previews/configure-mac-mini.webm",
+    replayManifestSrc: "/previews/replays/configure-mac-mini/manifest.json",
+    previewSrc: "/previews/configure-mac-mini.mp4",
+    previewPosterSrc: "/previews/configure-mac-mini-poster.jpg",
+    previewStartTime: 7.5,
+    previewTimeline: configureMacMiniTimeline as readonly BrowserRecordingTimelineEvent[],
     steps: [
       { action: "open", label: "Opening apple.com", url: "https://www.apple.com/", wait: 2_800 },
       { action: "reset-page", label: "Starting with a fresh Apple session", wait: 1_100 },
@@ -57,25 +86,22 @@ export const workflows = [
     id: "find-tokyo-stay",
     title: "Find a Tokyo stay",
     source: "Airbnb",
-    description: "Search Tokyo for a five-night stay, compare real homes with essential amenities and hand over on the selected property.",
+    description: "Browse Tokyo’s top-rated stays, compare real homes and hand over on the selected property.",
     outcome: "Tokyo Airbnb selected for review",
-    startUrl: "https://www.airbnb.com/",
-    previewSrc: "/previews/find-tokyo-stay.webm",
+    startUrl: "https://www.airbnb.com.au/tokyo-japan/stays",
+    replayManifestSrc: "/previews/replays/find-tokyo-stay/manifest.json",
+    previewSrc: "/previews/find-tokyo-stay.mp4",
+    previewPosterSrc: "/previews/find-tokyo-stay-poster.jpg",
+    previewStartTime: 13.3,
+    previewTimeline: findTokyoStayTimeline as readonly BrowserRecordingTimelineEvent[],
     steps: [
-      { action: "open", label: "Opening Airbnb", url: "https://www.airbnb.com/", wait: 4_500 },
-      { action: "type", label: "Searching for Tokyo", selector: "input[aria-label=\"Where\"]", text: "Tokyo", wait: 1_000 },
-      { action: "click", label: "Choosing Tokyo, Japan", selector: "[role=\"option\"]", waitFor: "button[aria-label*=\"Select as check-in date\"]", wait: 700 },
-      { action: "select-dates", label: "Planning five nights in Tokyo", leadDays: 21, nights: 5, wait: 650 },
-      { action: "click-text", label: "Adding two travellers", role: "button", text: "Add guests", wait: 450 },
-      { action: "click", label: "Adding the first guest", selector: "button[aria-label=\"Increase Adults\"]", wait: 250 },
-      { action: "click", label: "Adding the second guest", selector: "button[aria-label=\"Increase Adults\"]", wait: 400 },
-      { action: "click", label: "Finding available Tokyo homes", selector: "button[aria-label=\"Search\"]", waitFor: "[data-testid=\"card-container\"]", waitTimeout: 18_000, wait: 1_000 },
-      { action: "click", label: "Filtering for Wi-Fi", selector: "[role=\"checkbox\"][aria-label=\"Wifi\"]", wait: 1_100 },
-      { action: "click", label: "Filtering for air conditioning", selector: "[role=\"checkbox\"][aria-label=\"Air conditioning\"]", wait: 1_100 },
-      { action: "click", label: "Looking through the first stay", selector: "button[aria-label^=\"Next photo:\"]", index: 0, wait: 700 },
-      { action: "click", label: "Comparing another stay", selector: "button[aria-label^=\"Next photo:\"]", index: 1, wait: 700 },
+      { action: "open", label: "Opening Tokyo stays", url: "https://www.airbnb.com.au/tokyo-japan/stays", wait: 4_500 },
+      { action: "scroll-into-view", label: "Finding Tokyo’s top-rated stays", selector: "a[href*=\"pinned_listings\"]", wait: 1_100 },
+      { action: "click", label: "Opening the Tokyo results", selector: "a[href*=\"pinned_listings\"]", activation: "same-tab", waitFor: "[data-testid=\"card-container\"]", waitTimeout: 18_000, wait: 1_200 },
+      { action: "click", label: "Looking through the first stay", selector: "button[aria-label^=\"Next photo:\"]", index: 0, cursorSelector: "[data-testid=\"card-container\"]", cursorIndex: 0, cursorWithinSelector: "picture img", activation: "programmatic", wait: 700 },
+      { action: "click", label: "Comparing another stay", selector: "button[aria-label^=\"Next photo:\"]", index: 1, cursorSelector: "[data-testid=\"card-container\"]", cursorIndex: 1, cursorWithinSelector: "picture img", activation: "programmatic", wait: 700 },
       { action: "scroll", label: "Browsing more Tokyo homes", direction: "down", amount: 520, wait: 650 },
-      { action: "click", label: "Checking one more property", selector: "button[aria-label^=\"Next photo:\"]", index: 3, wait: 800 },
+      { action: "click", label: "Checking one more property", selector: "button[aria-label^=\"Next photo:\"]", index: 3, cursorSelector: "[data-testid=\"card-container\"]", cursorIndex: 3, cursorWithinSelector: "picture img", activation: "programmatic", wait: 800 },
       { action: "click", label: "Opening a promising Tokyo stay", selector: "[data-testid=\"card-container\"] > a[href*=\"/rooms/\"]", index: 3, activation: "same-tab", waitFor: "h1", waitTimeout: 18_000, wait: 1_200 },
       { action: "click", label: "Closing the translation note", selector: "button[aria-label=\"Close\"]", optional: true, wait: 450 },
       { action: "scroll", label: "Reviewing the property details", direction: "down", amount: 560, wait: 700 },

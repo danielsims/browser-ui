@@ -1,0 +1,170 @@
+[
+  {
+    "at": 0,
+    "operatingLabel": "Opening Tokyo stays"
+  },
+  {
+    "at": 0,
+    "agentCursor": {
+      "x": 0.5,
+      "y": 0.48,
+      "visible": false
+    }
+  },
+  {
+    "at": 4787,
+    "operatingLabel": "Finding Tokyo’s top-rated stays"
+  },
+  {
+    "at": 6120,
+    "agentCursor": {
+      "x": 0.1671875,
+      "y": 0.49955078125,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 8009,
+    "operatingLabel": "Opening the Tokyo results"
+  },
+  {
+    "at": 8791,
+    "agentCursor": {
+      "x": 0.1671875,
+      "y": 0.49955078125,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 12419,
+    "operatingLabel": "Looking through the first stay"
+  },
+  {
+    "at": 13178,
+    "agentCursor": {
+      "x": 0.130859375,
+      "y": 0.402919921875,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 14914,
+    "operatingLabel": "Comparing another stay"
+  },
+  {
+    "at": 15929,
+    "agentCursor": {
+      "x": 0.169061279296875,
+      "y": 0.500390625,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 17669,
+    "operatingLabel": "Browsing more Tokyo homes"
+  },
+  {
+    "at": 17669,
+    "agentCursor": {
+      "x": 0.91,
+      "y": 0.8,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 19471,
+    "operatingLabel": "Checking one more property"
+  },
+  {
+    "at": 20210,
+    "agentCursor": {
+      "x": 0.169061279296875,
+      "y": 0.4048828125,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 22043,
+    "operatingLabel": "Opening a promising Tokyo stay"
+  },
+  {
+    "at": 22791,
+    "agentCursor": {
+      "x": 0.169061279296875,
+      "y": 0.4817578125,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 26621,
+    "operatingLabel": "Closing the translation note"
+  },
+  {
+    "at": 27137,
+    "operatingLabel": "Reviewing the property details"
+  },
+  {
+    "at": 27137,
+    "agentCursor": {
+      "x": 0.91,
+      "y": 0.8,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 29230,
+    "operatingLabel": "Checking amenities and availability"
+  },
+  {
+    "at": 29230,
+    "agentCursor": {
+      "x": 0.91,
+      "y": 0.8,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 31287,
+    "operatingLabel": "Ready for you to review this Tokyo stay"
+  },
+  {
+    "at": 32348,
+    "agentCursor": {
+      "x": 0.791265869140625,
+      "y": 0.38625,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 34345,
+    "agentCursor": {
+      "x": 0.5,
+      "y": 0.5,
+      "visible": false
+    }
+  }
+]

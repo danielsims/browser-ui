@@ -1,0 +1,616 @@
+[
+  {
+    "at": 0,
+    "operatingLabel": "Opening apple.com"
+  },
+  {
+    "at": 0,
+    "agentCursor": {
+      "x": 0.5,
+      "y": 0.48,
+      "visible": false
+    }
+  },
+  {
+    "at": 3698,
+    "operatingLabel": "Starting with a fresh Apple session"
+  },
+  {
+    "at": 5023,
+    "operatingLabel": "Closing the region prompt"
+  },
+  {
+    "at": 6087,
+    "agentCursor": {
+      "x": 0.8354166666666667,
+      "y": 0.03888888888888889,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 6872,
+    "agentCursor": {
+      "x": 0.8354166666666667,
+      "y": 0.03888888888888889,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 7173,
+    "agentCursor": {
+      "x": 0.8354166666666667,
+      "y": 0.03888888888888889,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 7706,
+    "operatingLabel": "Opening Mac from Apple’s navigation"
+  },
+  {
+    "at": 8633,
+    "agentCursor": {
+      "x": 0.24709201388888888,
+      "y": 0.024444444444444446,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 9415,
+    "agentCursor": {
+      "x": 0.24709201388888888,
+      "y": 0.024444444444444446,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 9666,
+    "agentCursor": {
+      "x": 0.24709201388888888,
+      "y": 0.024444444444444446,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 11832,
+    "operatingLabel": "Finding Mac mini in the lineup"
+  },
+  {
+    "at": 11833,
+    "agentCursor": {
+      "x": 0.91,
+      "y": 0.8,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 15987,
+    "agentCursor": {
+      "x": 0.4638888888888889,
+      "y": 0.7311111111111112,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 17572,
+    "operatingLabel": "Opening Mac mini"
+  },
+  {
+    "at": 18441,
+    "agentCursor": {
+      "x": 0.4638888888888889,
+      "y": 0.7311111111111112,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 19222,
+    "agentCursor": {
+      "x": 0.4638888888888889,
+      "y": 0.7311111111111112,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 19488,
+    "agentCursor": {
+      "x": 0.4638888888888889,
+      "y": 0.7311111111111112,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 21605,
+    "operatingLabel": "Locating the Mac mini Buy button"
+  },
+  {
+    "at": 21605,
+    "agentCursor": {
+      "x": 0.91,
+      "y": 0.8,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 23065,
+    "agentCursor": {
+      "x": 0.4999945746527778,
+      "y": 0.8194444444444444,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 24999,
+    "operatingLabel": "Starting the configuration"
+  },
+  {
+    "at": 26127,
+    "agentCursor": {
+      "x": 0.4999945746527778,
+      "y": 0.7638888888888888,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 26911,
+    "agentCursor": {
+      "x": 0.4999945746527778,
+      "y": 0.7638888888888888,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 27462,
+    "agentCursor": {
+      "x": 0.4999945746527778,
+      "y": 0.7638888888888888,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 30826,
+    "operatingLabel": "Choosing the M4 chip"
+  },
+  {
+    "at": 32078,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.5772222222222222,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 32861,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.5772222222222222,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 33386,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.5772222222222222,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 34819,
+    "operatingLabel": "Selecting 24GB unified memory"
+  },
+  {
+    "at": 37038,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 37817,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 38309,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 39787,
+    "operatingLabel": "Selecting 512GB storage"
+  },
+  {
+    "at": 41392,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 42170,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 42457,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 43921,
+    "operatingLabel": "Keeping Gigabit Ethernet"
+  },
+  {
+    "at": 45787,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 46571,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 46996,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 48512,
+    "operatingLabel": "Continuing without a trade-in"
+  },
+  {
+    "at": 50077,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 50861,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 51237,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 52017,
+    "operatingLabel": "Choosing the standard purchase option"
+  },
+  {
+    "at": 53251,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 54033,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 54302,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.49944444444444447,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 55986,
+    "operatingLabel": "Reviewing the completed Mac mini"
+  },
+  {
+    "at": 57569,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.5005381944444445,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 58352,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.5005381944444445,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 58668,
+    "agentCursor": {
+      "x": 0.8236111111111111,
+      "y": 0.5005381944444445,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 62325,
+    "operatingLabel": "Adding a Studio Display with standard glass"
+  },
+  {
+    "at": 63620,
+    "agentCursor": {
+      "x": 0.6701388888888888,
+      "y": 0.7085416666666666,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 64391,
+    "agentCursor": {
+      "x": 0.6701388888888888,
+      "y": 0.7085416666666666,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 64674,
+    "agentCursor": {
+      "x": 0.6701388888888888,
+      "y": 0.7085416666666666,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 65483,
+    "operatingLabel": "Choosing the tilt-adjustable stand"
+  },
+  {
+    "at": 66867,
+    "agentCursor": {
+      "x": 0.6701388888888888,
+      "y": 0.2840972222222222,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 67648,
+    "agentCursor": {
+      "x": 0.6701388888888888,
+      "y": 0.2840972222222222,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 67956,
+    "agentCursor": {
+      "x": 0.6701388888888888,
+      "y": 0.2840972222222222,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 68763,
+    "operatingLabel": "Continuing without AppleCare"
+  },
+  {
+    "at": 69826,
+    "agentCursor": {
+      "x": 0.6701280381944444,
+      "y": 0.8540972222222222,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 70608,
+    "agentCursor": {
+      "x": 0.6701280381944444,
+      "y": 0.8540972222222222,
+      "pressed": true,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 70876,
+    "agentCursor": {
+      "x": 0.6701280381944444,
+      "y": 0.8540972222222222,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 71861,
+    "operatingLabel": "Ready for you to review the configured order"
+  },
+  {
+    "at": 71861,
+    "agentCursor": {
+      "x": 0.91,
+      "y": 0.8,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 73168,
+    "agentCursor": {
+      "x": 0.6701388888888888,
+      "y": 0.44131944444444443,
+      "pressed": false,
+      "typing": false,
+      "variant": "dark",
+      "visible": true
+    }
+  },
+  {
+    "at": 75176,
+    "agentCursor": {
+      "x": 0.5,
+      "y": 0.5,
+      "visible": false
+    }
+  }
+]
