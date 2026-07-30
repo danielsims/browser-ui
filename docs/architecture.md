@@ -222,19 +222,14 @@ const session = await api.browserSessions.open(sessionId);
 The API response is already authenticated and scoped. Browser UI does not need
 to know whether `api` used Nostr, Better Auth, a JWT, or a native app identity.
 
-## Rollout
+## Deployment checklist
 
-The safe rollout order is:
+Before exposing a session outside the local machine:
 
-1. Harden local desktop rendering and input behavior.
-2. Publish the pure core and platform UI packages.
-3. Treat completed recordings as ordinary cross-platform artifacts.
-4. Build the authenticated remote session gateway and control leases.
-5. Add channel observers in view-only mode.
-6. Add explicit control requests and grants.
-7. Add sensitive mode before shared authentication/setup workflows.
-8. Enable mobile control only after real-device latency, lifecycle, and lease
-   expiry tests pass.
-
-This keeps the component generic without moving security decisions into a UI
-library, where they would be both unportable and ineffective.
+1. Authenticate every source and viewer connection.
+2. Keep observers view-only by default.
+3. Enforce control leases at the gateway, not in the UI.
+4. Revoke control on disconnect, expiry, agent takeover, or sensitive mode.
+5. Test latency, backgrounding, reconnection, and lease expiry on real devices.
+6. Disable shared control during authentication, payment, and other sensitive
+   workflows.

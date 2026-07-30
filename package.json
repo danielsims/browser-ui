@@ -13,7 +13,7 @@
     "test": "pnpm --filter @browser-ui/core test && pnpm --filter @browser-ui/gateway test && pnpm --filter @browser-ui/react test",
     "typecheck": "pnpm --filter @browser-ui/core typecheck && pnpm --filter @browser-ui/gateway typecheck && pnpm --filter @browser-ui/react typecheck && pnpm --filter @browser-ui/react-native typecheck && pnpm --filter @browser-ui/demo typecheck && pnpm --filter @browser-ui/expo-demo typecheck && pnpm --filter @browser-ui/gateway-demo typecheck",
     "version-packages": "changeset version",
-    "release": "changeset publish"
+    "release": "pnpm build && npm_config_ignore_scripts=true changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1"
