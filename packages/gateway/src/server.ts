@@ -9,7 +9,7 @@ import {
   type BrowserSessionCapability,
   type BrowserSessionResolvedAccess,
   type BrowserSessionFrameEncoding,
-} from "@browser-ui/session";
+} from "@browser-ui/core";
 import { WebSocketServer } from "ws";
 import type {
   BrowserGatewayAuthenticator,

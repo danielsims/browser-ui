@@ -16,3 +16,17 @@ it. Source and viewer WebSockets use hashed, short-lived, single-use tickets
 carried as subprotocols rather than URLs. The in-memory registry is intended for
 one gateway process; distributed routing and durable recording remain deployment
 concerns.
+
+## agent-browser source
+
+The `@browser-ui/gateway/agent-browser` entrypoint connects a loopback-only
+`agent-browser` stream to the public gateway without exposing its automation or
+CDP socket:
+
+```ts
+import { relayAgentBrowserSession } from "@browser-ui/gateway/agent-browser";
+```
+
+The package also installs `browser-ui-agent-browser-source` for hosts that want
+the managed relay process and credential-free session descriptor. The connector
+runs beside `agent-browser`; the gateway server remains on the reachable host.

@@ -1,8 +1,6 @@
-import type {
-  BrowserSessionCapability,
-  BrowserViewportSize,
-} from "@browser-ui/core";
-export type { BrowserSessionCapability } from "@browser-ui/core";
+import type { BrowserSessionCapability } from "../access.js";
+import type { BrowserViewportSize } from "../geometry.js";
+export type { BrowserSessionCapability } from "../access.js";
 
 export const BROWSER_SESSION_PROTOCOL = "browser-session.v1";
 export const BROWSER_SESSION_BINARY_PROTOCOL = "browser-session.v1.binary-jpeg";

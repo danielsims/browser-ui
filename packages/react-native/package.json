@@ -48,7 +48,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@browser-ui/core": "workspace:*"
+    "@browser-ui/core": "workspace:^"
   },
   "peerDependencies": {
     "react": ">=18",

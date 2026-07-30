@@ -9,9 +9,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@browser-ui/core": "workspace:*",
     "@browser-ui/gateway": "workspace:*",
-    "@browser-ui/session": "workspace:*",
-    "@browser-ui/source-agent-browser": "workspace:*",
     "agent-browser": "0.32.3",
     "ws": "^8.18.3"
   },

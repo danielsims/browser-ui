@@ -9,8 +9,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@browser-ui/core": ["../core/src/index.ts"],
-      "@browser-ui/session": ["../session/src/index.ts"]
+      "@browser-ui/core": ["../core/src/index.ts"]
     }
   },
   "include": ["src"]

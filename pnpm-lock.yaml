@@ -76,15 +76,12 @@ importers:
 
   apps/gateway-demo:
     dependencies:
+      '@browser-ui/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@browser-ui/gateway':
         specifier: workspace:*
         version: link:../../packages/gateway
-      '@browser-ui/session':
-        specifier: workspace:*
-        version: link:../../packages/session
-      '@browser-ui/source-agent-browser':
-        specifier: workspace:*
-        version: link:../../packages/source-agent-browser
       agent-browser:
         specifier: 0.32.3
         version: 0.32.3
@@ -113,9 +110,9 @@ importers:
 
   packages/gateway:
     dependencies:
-      '@browser-ui/session':
-        specifier: workspace:*
-        version: link:../session
+      '@browser-ui/core':
+        specifier: workspace:^
+        version: link:../core
       ws:
         specifier: ^8.18.3
         version: 8.21.1
@@ -136,11 +133,8 @@ importers:
   packages/react:
     dependencies:
       '@browser-ui/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
-      '@browser-ui/session':
-        specifier: workspace:*
-        version: link:../session
       motion:
         specifier: ^12.42.2
         version: 12.42.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -176,7 +170,7 @@ importers:
   packages/react-native:
     dependencies:
       '@browser-ui/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@types/react':
@@ -188,47 +182,6 @@ importers:
       react-native:
         specifier: ^0.83.6
         version: 0.83.6(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.8)
-      tsup:
-        specifier: ^8.5.1
-        version: 8.5.1(postcss@8.5.23)(tsx@4.23.1)(typescript@5.9.3)(yaml@2.9.0)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  packages/session:
-    dependencies:
-      '@browser-ui/core':
-        specifier: workspace:*
-        version: link:../core
-    devDependencies:
-      tsup:
-        specifier: ^8.5.1
-        version: 8.5.1(postcss@8.5.23)(tsx@4.23.1)(typescript@5.9.3)(yaml@2.9.0)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  packages/source-agent-browser:
-    dependencies:
-      '@browser-ui/core':
-        specifier: workspace:*
-        version: link:../core
-      '@browser-ui/session':
-        specifier: workspace:*
-        version: link:../session
-      ws:
-        specifier: ^8.18.3
-        version: 8.21.1
-    devDependencies:
-      '@browser-ui/gateway':
-        specifier: workspace:*
-        version: link:../gateway
-      '@types/node':
-        specifier: ^24.10.1
-        version: 24.13.3
-      '@types/ws':
-        specifier: ^8.18.1
-        version: 8.18.1
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(postcss@8.5.23)(tsx@4.23.1)(typescript@5.9.3)(yaml@2.9.0)

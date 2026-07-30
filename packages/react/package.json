@@ -24,7 +24,6 @@
     "dist"
   ],
   "sideEffects": [
-    "./src/*.css",
     "./dist/*.css"
   ],
   "exports": {
@@ -40,10 +39,10 @@
     "react-dom": ">=18"
   },
   "scripts": {
-    "build": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/session build && tsup src/index.tsx --clean --format esm --dts --external react --external react-dom --external @browser-ui/core --external @browser-ui/session && node scripts/finalize-styles.mjs",
+    "build": "pnpm --filter @browser-ui/core build && tsup src/index.tsx --clean --format esm --dts --external react --external react-dom --external @browser-ui/core && node scripts/finalize-styles.mjs",
     "prepack": "pnpm run build",
-    "test": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/session build && vitest run",
-    "typecheck": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/session build && tsc --noEmit"
+    "test": "pnpm --filter @browser-ui/core build && vitest run",
+    "typecheck": "pnpm --filter @browser-ui/core build && tsc --noEmit"
   },
   "publishConfig": {
     "access": "public"
@@ -60,8 +59,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "@browser-ui/core": "workspace:*",
-    "@browser-ui/session": "workspace:*",
+    "@browser-ui/core": "workspace:^",
     "motion": "^12.42.2"
   }
 }

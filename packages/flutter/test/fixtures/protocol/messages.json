@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "agentBrowserMessages": [
+    {
+      "name": "status accepts additive fields",
+      "kind": "status",
+      "valid": true,
+      "message": {
+        "type": "status",
+        "connected": true,
+        "screencasting": true,
+        "viewportWidth": 1280,
+        "viewportHeight": 800,
+        "engine": "chrome",
+        "futureField": "ignored"
+      }
+    },
+    {
+      "name": "frame accepts additive fields",
+      "kind": "frame",
+      "valid": true,
+      "message": {
+        "type": "frame",
+        "data": "/9gBAgP/2Q==",
+        "metadata": {
+          "deviceWidth": 1280,
+          "deviceHeight": 800,
+          "pageScaleFactor": 1,
+          "offsetTop": 0,
+          "scrollOffsetX": 0,
+          "scrollOffsetY": 0,
+          "futureField": true
+        },
+        "futureField": true
+      }
+    },
+    {
+      "name": "status rejects missing viewport dimensions",
+      "kind": "status",
+      "valid": false,
+      "message": {
+        "type": "status",
+        "connected": true,
+        "screencasting": true
+      }
+    },
+    {
+      "name": "frame rejects non-positive dimensions",
+      "kind": "frame",
+      "valid": false,
+      "message": {
+        "type": "frame",
+        "data": "/9gBAgP/2Q==",
+        "metadata": {
+          "deviceWidth": 0,
+          "deviceHeight": 800,
+          "pageScaleFactor": 1,
+          "offsetTop": 0,
+          "scrollOffsetX": 0,
+          "scrollOffsetY": 0
+        }
+      }
+    }
+  ],
+  "binaryFrame": {
+    "header": {
+      "v": 1,
+      "type": "frame",
+      "codec": "image/jpeg",
+      "width": 1280,
+      "height": 800,
+      "capturedAt": 1000,
+      "sourceEpoch": "epoch-one",
+      "frameSequence": 7,
+      "viewportRevision": 0,
+      "metadata": {
+        "deviceWidth": 1280,
+        "deviceHeight": 800,
+        "pageScaleFactor": 1,
+        "offsetTop": 0,
+        "scrollOffsetX": 0,
+        "scrollOffsetY": 0
+      }
+    },
+    "jpeg": [255, 216, 1, 2, 255, 217]
+  }
+}

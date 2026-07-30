@@ -1,7 +1,7 @@
 {
   "name": "@browser-ui/gateway",
   "version": "0.2.0",
-  "description": "Authenticated view-only fanout gateway for remote browser sessions.",
+  "description": "Authenticated remote browser gateway with an agent-browser source connector.",
   "keywords": [
     "agent-browser",
     "browser",
@@ -19,6 +19,9 @@
     "directory": "packages/gateway"
   },
   "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "files": [
     "dist"
   ],
@@ -26,10 +29,17 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./agent-browser": {
+      "types": "./dist/agent-browser/index.d.ts",
+      "import": "./dist/agent-browser/index.js"
     }
   },
+  "bin": {
+    "browser-ui-agent-browser-source": "./dist/agent-browser/cli.js"
+  },
   "scripts": {
-    "build": "pnpm --filter @browser-ui/session build && tsup src/index.ts --clean --format esm --dts",
+    "build": "pnpm --filter @browser-ui/core build && tsup src/index.ts src/agent-browser/index.ts src/agent-browser/cli.ts --clean --format esm --dts",
     "prepack": "pnpm run build",
     "test": "pnpm run build && node --test test/*.test.mjs",
     "typecheck": "tsc --noEmit"
@@ -38,7 +48,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@browser-ui/session": "workspace:*",
+    "@browser-ui/core": "workspace:^",
     "ws": "^8.18.3"
   },
   "devDependencies": {

@@ -4,7 +4,7 @@ import WebSocket from "ws";
 import {
   decodeBrowserSessionBinaryFrame,
   encodeBrowserSessionBinaryFrame,
-} from "@browser-ui/session";
+} from "@browser-ui/core";
 
 import { createBrowserSessionGateway, OneTimeBrowserGatewayTickets } from "../dist/index.js";
 

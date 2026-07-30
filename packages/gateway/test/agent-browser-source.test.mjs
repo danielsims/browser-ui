@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import WebSocket, { WebSocketServer } from "ws";
-import { createBrowserSessionGateway } from "@browser-ui/gateway";
-import { decodeBrowserSessionBinaryFrame } from "@browser-ui/session";
+import { decodeBrowserSessionBinaryFrame } from "@browser-ui/core";
 
-import { relayAgentBrowserSession, validateLoopbackStreamUrl } from "../dist/index.js";
+import { createBrowserSessionGateway } from "../dist/index.js";
+import { relayAgentBrowserSession, validateLoopbackStreamUrl } from "../dist/agent-browser/index.js";
 
 test("only accepts private loopback agent-browser sockets", () => {
   assert.equal(validateLoopbackStreamUrl("ws://127.0.0.1:9223"), "ws://127.0.0.1:9223/");

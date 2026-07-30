@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -8,6 +9,11 @@ import {
   mapContainedPointToViewport,
   parseAgentBrowserMessage,
 } from "../dist/index.js";
+
+const fixtures = JSON.parse(readFileSync(
+  new URL("../../flutter/test/fixtures/protocol/messages.json", import.meta.url),
+  "utf8",
+));
 
 test("maps contained points and rejects letterboxing", () => {
   const container = { width: 400, height: 400 };
@@ -31,6 +37,14 @@ test("parses supported agent-browser messages tolerantly", () => {
   }))?.type, "status");
   assert.equal(parseAgentBrowserMessage({ type: "status", connected: true }), null);
   assert.equal(parseAgentBrowserMessage({ type: "future-message" }), null);
+});
+
+test("matches the shared agent-browser protocol fixtures", () => {
+  for (const fixture of fixtures.agentBrowserMessages) {
+    const message = parseAgentBrowserMessage(fixture.message);
+    assert.equal(message !== null, fixture.valid, fixture.name);
+    if (message) assert.equal(message.type, fixture.kind, fixture.name);
+  }
 });
 
 test("maps punctuation and modifiers to browser keyboard input", () => {

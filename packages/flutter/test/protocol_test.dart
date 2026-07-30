@@ -1,11 +1,38 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:browser_ui/browser_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  final fixtures =
+      jsonDecode(
+            File('test/fixtures/protocol/messages.json').readAsStringSync(),
+          )
+          as Map<String, Object?>;
+
   group('AgentBrowserProtocol', () {
+    test('matches the shared agent-browser protocol fixtures', () {
+      final messages = fixtures['agentBrowserMessages']! as List<Object?>;
+      for (final value in messages) {
+        final fixture = value! as Map<String, Object?>;
+        final message = AgentBrowserProtocol.tryParse(fixture['message']);
+        expect(
+          message != null,
+          fixture['valid'],
+          reason: fixture['name']! as String,
+        );
+        if (message != null) {
+          expect(
+            _messageKind(message),
+            fixture['kind'],
+            reason: fixture['name']! as String,
+          );
+        }
+      }
+    });
+
     test('parses a frame while ignoring additive fields', () {
       final message = AgentBrowserProtocol.parse(
         jsonEncode(<String, Object?>{
@@ -79,7 +106,15 @@ void main() {
     });
 
     test('parses binary JPEG gateway frames', () {
-      final message = AgentBrowserProtocol.parse(_binaryFrame(sequence: 7));
+      final fixture = fixtures['binaryFrame']! as Map<String, Object?>;
+      final message = AgentBrowserProtocol.parse(
+        _binaryFrame(
+          header: Map<String, Object?>.from(
+            fixture['header']! as Map<Object?, Object?>,
+          ),
+          jpeg: (fixture['jpeg']! as List<Object?>).cast<int>(),
+        ),
+      );
 
       expect(message, isA<BrowserSessionBinaryFrameMessage>());
       final frame = message as BrowserSessionBinaryFrameMessage;
@@ -119,33 +154,24 @@ void main() {
   });
 }
 
-Uint8List _binaryFrame({required int sequence}) {
-  final header = utf8.encode(
-    jsonEncode(<String, Object?>{
-      'v': 1,
-      'type': 'frame',
-      'codec': 'image/jpeg',
-      'width': 1280,
-      'height': 800,
-      'capturedAt': 1000,
-      'sourceEpoch': 'epoch-one',
-      'frameSequence': sequence,
-      'viewportRevision': 0,
-      'metadata': <String, Object?>{
-        'deviceWidth': 1280,
-        'deviceHeight': 800,
-        'pageScaleFactor': 1,
-        'offsetTop': 0,
-        'scrollOffsetX': 0,
-        'scrollOffsetY': 0,
-      },
-    }),
-  );
-  final jpeg = <int>[0xff, 0xd8, 1, 2, 0xff, 0xd9];
-  final result = Uint8List(12 + header.length + jpeg.length);
+String _messageKind(AgentBrowserMessage message) => switch (message) {
+  AgentBrowserFrameMessage() => 'frame',
+  AgentBrowserStreamStatusMessage() => 'status',
+  AgentBrowserUrlMessage() => 'url',
+  AgentBrowserCursorMessage() => 'cursor',
+  BrowserSessionBinaryFrameMessage() => 'binary-frame',
+  AgentBrowserUnknownMessage() => message.type,
+};
+
+Uint8List _binaryFrame({
+  required Map<String, Object?> header,
+  required List<int> jpeg,
+}) {
+  final encodedHeader = utf8.encode(jsonEncode(header));
+  final result = Uint8List(12 + encodedHeader.length + jpeg.length);
   result.setAll(0, <int>[0x42, 0x55, 0x49, 0x46, 1, 1, 0, 0]);
-  ByteData.sublistView(result).setUint32(8, header.length);
-  result.setAll(12, header);
-  result.setAll(12 + header.length, jpeg);
+  ByteData.sublistView(result).setUint32(8, encodedHeader.length);
+  result.setAll(12, encodedHeader);
+  result.setAll(12 + encodedHeader.length, jpeg);
   return result;
 }

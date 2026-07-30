@@ -1,15 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { parseAgentBrowserMessage } from "@browser-ui/core";
 import {
   BROWSER_SESSION_VERSION,
   encodeBrowserSessionBinaryFrame,
   normalizeGatewayOrigin,
+  parseAgentBrowserMessage,
   parseBrowserSourceInputMessage,
   type BrowserSessionBinaryFrameHeader,
   type BrowserSessionConnection,
   type BrowserSessionDescriptor,
   type BrowserSessionHttpAuthorization,
-} from "@browser-ui/session";
+} from "@browser-ui/core";
 import WebSocket, { type RawData } from "ws";
 
 export interface AgentBrowserSourceOptions {

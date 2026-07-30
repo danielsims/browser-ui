@@ -1,4 +1,4 @@
-import type { BrowserViewportSize } from "@browser-ui/core";
+import type { BrowserViewportSize } from "../geometry.js";
 import {
   BROWSER_SESSION_VERSION,
   type BrowserSessionDescriptor,

@@ -6,8 +6,8 @@ import { randomUUID } from "node:crypto";
 import WebSocket from "ws";
 
 import { createBrowserSessionGateway } from "@browser-ui/gateway";
-import { decodeBrowserSessionBinaryFrame } from "@browser-ui/session";
-import { relayAgentBrowserSession } from "@browser-ui/source-agent-browser";
+import { decodeBrowserSessionBinaryFrame } from "@browser-ui/core";
+import { relayAgentBrowserSession } from "@browser-ui/gateway/agent-browser";
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);

@@ -8,6 +8,29 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { relayAgentBrowserSession } from "./relay.js";
 
+if (process.argv.includes("--help")) {
+  process.stdout.write(`browser-ui-agent-browser-source
+
+Relays a loopback agent-browser stream through an authenticated Browser UI gateway.
+
+Usage:
+  browser-ui-agent-browser-source [--foreground]
+  browser-ui-agent-browser-source --help
+  browser-ui-agent-browser-source --version
+
+Configuration is supplied through the BROWSER_UI_* and AGENT_BROWSER_* environment variables.
+`);
+  process.exit(0);
+}
+if (process.argv.includes("--version")) {
+  const packageJson = JSON.parse(
+    await readFile(new URL("../../package.json", import.meta.url), "utf8"),
+  ) as { version?: unknown };
+  if (typeof packageJson.version !== "string") throw new Error("Could not read the gateway package version.");
+  process.stdout.write(`${packageJson.version}\n`);
+  process.exit(0);
+}
+
 await loadLaunchConfig();
 
 if (!process.argv.includes("--foreground")) {

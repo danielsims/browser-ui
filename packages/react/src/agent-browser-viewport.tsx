@@ -14,8 +14,7 @@ import {
   parseAgentBrowserMessage,
   canSendBrowserInput,
 } from "@browser-ui/core";
-import { decodeBrowserSessionBinaryFrame } from "@browser-ui/session";
-import type { BrowserSessionConnection } from "@browser-ui/session";
+import { decodeBrowserSessionBinaryFrame, type BrowserSessionConnection } from "@browser-ui/core";
 
 export type { BrowserViewportSize } from "@browser-ui/core";
 

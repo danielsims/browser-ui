@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 
 import { createBrowserSessionGateway } from "@browser-ui/gateway";
-import { relayAgentBrowserSession } from "@browser-ui/source-agent-browser";
+import { relayAgentBrowserSession } from "@browser-ui/gateway/agent-browser";
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);

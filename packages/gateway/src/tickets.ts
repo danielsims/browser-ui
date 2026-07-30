@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { BrowserSessionCapability } from "@browser-ui/session";
+import type { BrowserSessionCapability } from "@browser-ui/core";
 
 export interface BrowserGatewayTicketClaims {
   role: "source" | "viewer";

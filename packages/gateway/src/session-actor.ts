@@ -13,7 +13,7 @@ import {
   type BrowserSessionSnapshotMessage,
   type BrowserSessionStatusMessage,
   type BrowserSourceFrameMessage,
-} from "@browser-ui/session";
+} from "@browser-ui/core";
 import WebSocket, { type RawData } from "ws";
 import type { BrowserGatewayPrincipal } from "./auth.js";
 
