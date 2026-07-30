@@ -18,7 +18,7 @@ jobs:
           version: 10.15.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
@@ -27,11 +27,7 @@ jobs:
       - run: npm pack --dry-run
         working-directory: packages/core
       - run: npm pack --dry-run
-        working-directory: packages/session
-      - run: npm pack --dry-run
         working-directory: packages/gateway
-      - run: npm pack --dry-run
-        working-directory: packages/source-agent-browser
       - run: npm pack --dry-run
         working-directory: packages/react
       - run: npm pack --dry-run

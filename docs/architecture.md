@@ -179,14 +179,19 @@ relay as the durable session identity.
 
 ## Package Responsibilities
 
-`@browser-ui/core` contains pure protocol parsing, coordinate mapping, cursor
-and recording types, principals, capabilities, and control-lease projections.
+`@browser-ui/core` contains agent-browser and remote-session protocol parsing,
+binary frame envelopes, connection resolution, coordinate mapping, cursor and
+recording types, principals, capabilities, and control-lease projections.
 
 `@browser-ui/react` contains the DOM/WebSocket canvas client, web display modes,
 recordings, and headless access primitives with stable data attributes.
 
 `@browser-ui/react-native` contains an Expo-compatible image stream viewer,
 native lifecycle handling, touch input, and host-controlled browser sheet.
+
+`@browser-ui/gateway` contains the optional authenticated relay, control-lease
+enforcement, and its `agent-browser` source connector and CLI. Those source
+internals are a distinct runtime domain without becoming another public package.
 
 `packages/flutter` contains the equivalent Dart protocol, controller, view,
 and native bottom sheet. Dart and TypeScript share protocol behavior and test

@@ -132,9 +132,10 @@ border radius.
 
 ## Packages
 
-- `@browser-ui/core`: protocol, geometry, cursor, recording, and access types.
+- `@browser-ui/core`: protocol, session, geometry, cursor, recording, and access contracts.
 - `@browser-ui/react`: web canvas, browser chrome, recordings, and primitives.
 - `@browser-ui/react-native`: Expo-compatible viewer and native browser sheet.
+- `@browser-ui/gateway`: optional authenticated relay, control leases, and agent-browser source connector.
 - `packages/flutter`: Dart controller, viewer, and native browser sheet.
 
 A phone can consume a reachable stream directly. Localhost points at the phone,

@@ -3,16 +3,7 @@
   "access": "public",
   "baseBranch": "main",
   "commit": false,
-  "fixed": [
-    [
-      "@browser-ui/core",
-      "@browser-ui/session",
-      "@browser-ui/gateway",
-      "@browser-ui/source-agent-browser",
-      "@browser-ui/react",
-      "@browser-ui/react-native"
-    ]
-  ],
+  "fixed": [],
   "ignore": [],
   "linked": [],
   "privatePackages": {
