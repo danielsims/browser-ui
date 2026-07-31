@@ -9,9 +9,9 @@
     "changeset": "changeset",
     "dev": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/demo dev",
     "dev:live": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/demo dev:live",
-    "build": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/gateway build && pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/react-native build && pnpm --filter @browser-ui/demo build",
+    "build": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/gateway build && pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/react-native build && pnpm --filter @browser-ui/demo build && pnpm --filter @browser-ui/example-vercel-sandbox build",
     "test": "pnpm --filter @browser-ui/core test && pnpm --filter @browser-ui/gateway test && pnpm --filter @browser-ui/react test",
-    "typecheck": "pnpm --filter @browser-ui/core typecheck && pnpm --filter @browser-ui/gateway typecheck && pnpm --filter @browser-ui/react typecheck && pnpm --filter @browser-ui/react-native typecheck && pnpm --filter @browser-ui/demo typecheck && pnpm --filter @browser-ui/expo-demo typecheck && pnpm --filter @browser-ui/gateway-demo typecheck",
+    "typecheck": "pnpm --filter @browser-ui/core typecheck && pnpm --filter @browser-ui/gateway typecheck && pnpm --filter @browser-ui/react typecheck && pnpm --filter @browser-ui/react-native typecheck && pnpm --filter @browser-ui/demo typecheck && pnpm --filter @browser-ui/expo-demo typecheck && pnpm --filter @browser-ui/gateway-demo typecheck && pnpm --filter @browser-ui/example-vercel-sandbox typecheck",
     "version-packages": "changeset version",
     "release": "pnpm build && npm_config_ignore_scripts=true changeset publish"
   },
