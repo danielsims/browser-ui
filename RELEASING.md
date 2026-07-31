@@ -43,6 +43,11 @@ request. Merging that pull request updates package versions; publication remains
 a manual `pnpm release` step. Push the tags created by Changesets after the
 release succeeds.
 
+The repository must allow GitHub Actions to create pull requests under
+**Settings → Actions → General → Workflow permissions**. The repository-wide
+token default can remain read-only: the release workflow explicitly grants only
+the `contents: write` and `pull-requests: write` permissions it needs.
+
 ## Flutter publication
 
 The Dart package lives at `packages/flutter` and is released independently:
