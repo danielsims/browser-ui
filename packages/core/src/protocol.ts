@@ -1,3 +1,5 @@
+import type { BrowserAgentActivity } from "./presentation.js";
+
 export interface AgentBrowserFrameMetadata {
   deviceWidth: number;
   deviceHeight: number;
@@ -48,6 +50,12 @@ export interface AgentBrowserResultMessage {
   timestamp: number;
 }
 
+export interface BrowserSessionActivityMessage extends BrowserAgentActivity {
+  type: "activity";
+  v: 1;
+  eventSequence: number;
+}
+
 export interface AgentBrowserConsoleMessage {
   type: "console";
   level: string;
@@ -95,6 +103,7 @@ export type AgentBrowserIncomingMessage =
   | AgentBrowserUrlMessage
   | AgentBrowserCommandMessage
   | AgentBrowserResultMessage
+  | BrowserSessionActivityMessage
   | AgentBrowserConsoleMessage
   | AgentBrowserPageErrorMessage
   | AgentBrowserErrorMessage
@@ -139,6 +148,8 @@ export function parseAgentBrowserMessage(
         finite(decoded.duration_ms) && finite(decoded.timestamp)
         ? decoded as unknown as AgentBrowserResultMessage
         : null;
+    case "activity":
+      return parseActivity(decoded);
     case "console":
       return stringFields(decoded, "level", "text") && finite(decoded.timestamp)
         ? decoded as unknown as AgentBrowserConsoleMessage
@@ -161,6 +172,124 @@ export function parseAgentBrowserMessage(
     default:
       return null;
   }
+}
+
+/**
+ * Produces a concise, safe status label from an agent-browser command.
+ * User-entered values are intentionally never included.
+ */
+export function describeAgentBrowserCommand(
+  action: string,
+  params: Record<string, unknown>,
+): string {
+  const normalized = action.toLowerCase().replaceAll("_", "").replaceAll("-", "");
+  switch (normalized) {
+    case "open":
+    case "goto":
+    case "navigate":
+      return destinationLabel(params.url);
+    case "back":
+      return "Going back";
+    case "forward":
+      return "Going forward";
+    case "reload":
+      return "Reloading the page";
+    case "click":
+    case "dblclick":
+      return "Clicking an element";
+    case "fill":
+    case "type":
+      return "Entering text";
+    case "press":
+      return typeof params.key === "string" && params.key.length <= 32
+        ? `Pressing ${params.key}`
+        : "Pressing a key";
+    case "hover":
+      return "Inspecting an element";
+    case "select":
+      return "Selecting an option";
+    case "check":
+      return "Checking an option";
+    case "uncheck":
+      return "Unchecking an option";
+    case "scroll":
+    case "scrollintoview":
+      return "Scrolling the page";
+    case "snapshot":
+    case "getcontent":
+    case "gettext":
+    case "gethtml":
+    case "getvalue":
+      return "Reading the page";
+    case "screenshot":
+      return "Capturing the page";
+    case "wait":
+    case "waitforurl":
+    case "waitforloadstate":
+    case "waitforfunction":
+    case "waitfordownload":
+      return "Waiting for the page";
+    case "tabs":
+    case "tablist":
+    case "tabnew":
+    case "tabswitch":
+    case "tabclose":
+      return "Managing browser tabs";
+    default:
+      return `Running ${humanizeAction(action)}`;
+  }
+}
+
+function parseActivity(value: Record<string, unknown>): BrowserSessionActivityMessage | null {
+  return value.v === 1 &&
+    typeof value.id === "string" &&
+    typeof value.action === "string" &&
+    typeof value.label === "string" &&
+    value.id.length > 0 &&
+    value.action.length > 0 &&
+    value.label.length > 0 &&
+    value.id.length <= 256 &&
+    value.action.length <= 128 &&
+    value.label.length <= 160 &&
+    (value.phase === "started" || value.phase === "completed") &&
+    finite(value.timestamp) &&
+    nonNegativeInteger(value.eventSequence) &&
+    (value.agentCursor === undefined || validAgentCursor(value.agentCursor)) &&
+    (value.success === undefined || typeof value.success === "boolean") &&
+    (value.durationMs === undefined || nonNegativeInteger(value.durationMs))
+    ? value as unknown as BrowserSessionActivityMessage
+    : null;
+}
+
+function validAgentCursor(value: unknown): boolean {
+  if (!isRecord(value) || !unitCoordinate(value.x) || !unitCoordinate(value.y)) return false;
+  return (value.label === undefined || boundedNonEmptyString(value.label, 80)) &&
+    (value.pressed === undefined || typeof value.pressed === "boolean") &&
+    (value.typing === undefined || typeof value.typing === "boolean") &&
+    (value.visible === undefined || typeof value.visible === "boolean") &&
+    (value.variant === undefined || value.variant === "light" || value.variant === "dark") &&
+    (value.size === undefined || finite(value.size) && value.size > 0 && value.size <= 256) &&
+    (value.backgroundColor === undefined || boundedNonEmptyString(value.backgroundColor, 128));
+}
+
+function destinationLabel(value: unknown): string {
+  if (typeof value !== "string") return "Opening a page";
+  try {
+    const hostname = new URL(value.includes("://") ? value : `https://${value}`).hostname;
+    return hostname ? `Opening ${hostname}` : "Opening a page";
+  } catch {
+    return "Opening a page";
+  }
+}
+
+function humanizeAction(action: string): string {
+  const words = action
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replaceAll("_", " ")
+    .replaceAll("-", " ")
+    .trim()
+    .toLowerCase();
+  return words || "browser action";
 }
 
 function parseFrame(value: Record<string, unknown>): AgentBrowserFrameMessage | null {
@@ -201,6 +330,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function finite(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function unitCoordinate(value: unknown): value is number {
+  return finite(value) && value >= 0 && value <= 1;
+}
+
+function boundedNonEmptyString(value: unknown, maximum: number): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= maximum;
+}
+
+function nonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0;
 }
 
 function positive(value: unknown): value is number {

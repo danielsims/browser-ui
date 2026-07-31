@@ -6,6 +6,7 @@ import {
   BrowserLoading,
   BrowserRoot,
   BrowserSurface,
+  type BrowserAgentActivity,
 } from "@browser-ui/react";
 
 interface DemoSession {
@@ -33,6 +34,7 @@ export default function Page() {
   const [deploymentRequired, setDeploymentRequired] = useState(false);
   const [starting, setStarting] = useState(true);
   const [agentRunning, setAgentRunning] = useState(false);
+  const [agentActivity, setAgentActivity] = useState<BrowserAgentActivity | null>(null);
   const [control, setControl] = useState<"agent" | "human">("agent");
   const [leaseId, setLeaseId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -102,7 +104,7 @@ export default function Page() {
           code ? (result.error ?? "Incorrect deployment access code") : null,
         );
         setReply(
-          "Enter this deployment's private access code to start its sandbox.",
+          "Enter this deployment's private access code to start the sandbox.",
         );
         return;
       }
@@ -159,6 +161,10 @@ export default function Page() {
     });
   }, [session]);
 
+  const handleAgentActivity = useCallback((activity: BrowserAgentActivity | null) => {
+    if (activity) setAgentActivity(activity);
+  }, []);
+
   async function endSession() {
     if (!session) return;
     setError(null);
@@ -183,7 +189,7 @@ export default function Page() {
   }
 
   async function changeControl(action: "acquire" | "release") {
-    if (!session) return;
+    if (!session) return false;
     setError(null);
     try {
       const response = await fetch("/api/control", {
@@ -208,21 +214,29 @@ export default function Page() {
           : "Control returned to the agent.",
       );
       if (action === "acquire") setAgentRunning(false);
+      return true;
     } catch (nextError) {
       setError(message(nextError));
+      return false;
     }
   }
 
   async function sendPrompt(event: FormEvent) {
     event.preventDefault();
     const instruction = prompt.trim();
-    if (!session || !instruction || agentRunning || control === "human") return;
+    if (!session || !instruction || agentRunning) return;
     setPrompt("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
     setError(null);
     setHasPrompted(true);
-    setAgentRunning(true);
     setReply(instruction);
+    setAgentActivity(null);
+    setAgentRunning(true);
+    if (control === "human" && !await changeControl("release")) {
+      setPrompt(instruction);
+      setAgentRunning(false);
+      return;
+    }
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -238,6 +252,7 @@ export default function Page() {
     } catch (nextError) {
       setError(message(nextError));
     } finally {
+      setAgentActivity(null);
       setAgentRunning(false);
     }
   }
@@ -245,7 +260,7 @@ export default function Page() {
   return (
     <div className="page">
       <header className="site-header">
-        <a className="brand" href="https://browser.danielsi.ms">
+        <a className="brand" href="https://browser-ui.danielsi.ms">
           browser-ui <span>/ vercel-sandbox</span>
         </a>
         <div className="header-actions">
@@ -323,6 +338,7 @@ export default function Page() {
               interactive={control === "human"}
               operating={agentRunning && control === "agent"}
               operatingLabel="Agent is browsing"
+              onActivityChange={handleAgentActivity}
               displayControls={
                 <button
                   className="bui-display-trigger sandbox-end-trigger"
@@ -336,6 +352,7 @@ export default function Page() {
                 </button>
               }
               onTakeControl={() => void changeControl("acquire")}
+              onInteractionIntent={() => changeControl("acquire")}
               showPictureInPicture
               showFullscreen
               style={{ width: "100%" }}
@@ -386,10 +403,7 @@ export default function Page() {
                       }}
                     >
                       <span>Private deployment</span>
-                      <p>
-                        Enter the access code configured by the person who
-                        deployed this template.
-                      </p>
+                      <p>Enter the access code configured during deployment.</p>
                       <div>
                         <input
                           aria-label="Deployment access code"
@@ -412,10 +426,7 @@ export default function Page() {
                   ) : (
                     <div className="sandbox-retry">
                       <span>Remote browser offline</span>
-                      <p>
-                        The disposable sandbox has stopped. Start a fresh
-                        session to continue.
-                      </p>
+                      <p>Sandbox stopped. Start a new session.</p>
                       <button onClick={() => void startSession()}>
                         Restart sandbox
                       </button>
@@ -435,19 +446,24 @@ export default function Page() {
             className={error ? "agent-update error" : "agent-update"}
             aria-live="polite"
           >
-            <span>
-              {agentRunning
-                ? "Agent"
-                : error
-                  ? "Error"
-                  : control === "human"
-                    ? "Handoff"
-                    : "Agent"}
-            </span>
-            <p>{error ?? (agentRunning ? "Working..." : reply)}</p>
+            {!accessRequired ? (
+              <span>
+                {agentRunning
+                  ? "Agent"
+                  : error
+                    ? "Error"
+                    : control === "human"
+                      ? "Handoff"
+                      : "Agent"}
+              </span>
+            ) : null}
+            <p>
+              {error ??
+                (agentRunning ? (agentActivity?.label ?? "Working...") : reply)}
+            </p>
           </div>
         ) : null}
-        {session && !hasPrompted && control === "agent" ? (
+        {session && !hasPrompted ? (
           <div className="suggestions">
             {suggestions.map((suggestion) => (
               <button key={suggestion} onClick={() => setPrompt(suggestion)}>
@@ -461,7 +477,7 @@ export default function Page() {
             <textarea
               ref={textareaRef}
               aria-label="Browser instruction"
-              disabled={!session || control === "human"}
+              disabled={!session}
               onChange={(event) => setPrompt(event.target.value)}
               onInput={(event) => {
                 event.currentTarget.style.height = "auto";
@@ -474,11 +490,7 @@ export default function Page() {
                 }
               }}
               placeholder={
-                control === "human"
-                  ? "Return control to continue chatting"
-                  : session
-                    ? "Ask the agent to browse..."
-                    : "Start a sandbox to begin"
+                session ? "Ask the agent to browse..." : "Start a sandbox to begin"
               }
               rows={1}
               value={prompt}
@@ -491,8 +503,7 @@ export default function Page() {
                 disabled={
                   !session ||
                   !prompt.trim() ||
-                  agentRunning ||
-                  control === "human"
+                  agentRunning
                 }
                 type="submit"
                 aria-label="Send instruction"

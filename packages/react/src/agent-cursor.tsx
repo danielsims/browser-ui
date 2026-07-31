@@ -18,16 +18,16 @@ export function BrowserAgentCursor({
   backgroundColor = "#2f6bff",
   label,
   pressed = false,
-  size = 24,
+  size = 32,
   style,
   typing = false,
-  variant = "light",
+  variant = "dark",
   visible = true,
   x,
   y,
   ...props
 }: BrowserAgentCursorProps) {
-  const cursorSize = Number.isFinite(size) ? Math.max(1, size) : 24;
+  const cursorSize = Number.isFinite(size) ? Math.max(1, size) : 32;
   const glowOffset = cursorSize <= 32 ? "-3%" : cursorSize <= 64 ? "-2%" : "0%";
 
   return <div

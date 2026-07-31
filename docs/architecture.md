@@ -132,14 +132,6 @@ explicitly. DOM detection is useful defense, not a complete policy.
 Browser UI receives an opaque `BrowserPrincipal` with `id`, `displayName`, and
 `kind`. It does not parse credentials.
 
-### Buzz / Nostr
-
-The gateway can authenticate a signed challenge or NIP-98 request, resolve the
-public key's current community and channel membership, and project that public
-key as the principal ID. Channel membership can grant `observe`; control grants
-should remain explicit. Relay messages announce an opaque session ID, never a
-local process name, port, or durable bearer token.
-
 ### Cookie Sessions / Better Auth
 
 A same-origin gateway can use the existing secure HTTP-only session cookie.
@@ -153,6 +145,14 @@ short-lived, session-scoped stream ticket. Do not place a durable bearer token
 in a WebSocket query string. Browser clients can use a secure same-origin
 cookie, a short-lived single-use URL ticket, or a negotiated WebSocket
 subprotocol according to the gateway's deployment constraints.
+
+### Nostr
+
+The gateway can authenticate a signed challenge or NIP-98 request, resolve the
+public key's current community and channel membership, and project that public
+key as the principal ID. Channel membership can grant `observe`; control grants
+should remain explicit. Relay messages announce an opaque session ID, never a
+local process name, port, or durable bearer token.
 
 ## Session Descriptor
 

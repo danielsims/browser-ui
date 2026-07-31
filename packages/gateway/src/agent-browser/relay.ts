@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
 import {
   BROWSER_SESSION_VERSION,
+  describeAgentBrowserCommand,
   encodeBrowserSessionBinaryFrame,
   normalizeGatewayOrigin,
   parseAgentBrowserMessage,
   parseBrowserSourceInputMessage,
+  type AgentBrowserCommandMessage,
+  type AgentBrowserConsoleMessage,
+  type AgentBrowserResultMessage,
+  type BrowserAgentCursorState,
   type BrowserSessionBinaryFrameHeader,
   type BrowserSessionConnection,
   type BrowserSessionDescriptor,
@@ -14,7 +19,9 @@ import WebSocket, { type RawData } from "ws";
 
 export interface AgentBrowserSourceOptions {
   gatewayOrigin: string;
-  streamUrl: string;
+  streamUrl?: string;
+  /** Resolves the current loopback stream URL before each connection attempt. */
+  resolveStreamUrl?: () => string | Promise<string>;
   title: string;
   viewport: { width: number; height: number };
   authorize?: BrowserSessionHttpAuthorization;
@@ -23,6 +30,13 @@ export interface AgentBrowserSourceOptions {
   reconnectMaximumDelayMs?: number;
   maximumBufferedBytes?: number;
   navigate?: (direction: "back" | "forward") => Promise<void>;
+  /**
+   * Optionally maps a source console event to a normalized visual cursor.
+   * Useful with a page init script that reports the browser's real pointer events.
+   */
+  agentCursorFromConsole?: (
+    message: AgentBrowserConsoleMessage,
+  ) => BrowserAgentCursorState | null;
 }
 
 export interface AgentBrowserSourceMetrics {
@@ -47,11 +61,21 @@ interface PendingFrame {
   payload: Uint8Array;
 }
 
+interface PendingActivity {
+  command: AgentBrowserCommandMessage;
+  label: string;
+}
+
 export async function relayAgentBrowserSession(
   options: AgentBrowserSourceOptions,
 ): Promise<AgentBrowserSourceHandle> {
   const gatewayOrigin = normalizeGatewayOrigin(options.gatewayOrigin);
-  const streamUrl = validateLoopbackStreamUrl(options.streamUrl);
+  const staticStreamUrl = options.streamUrl
+    ? validateLoopbackStreamUrl(options.streamUrl)
+    : null;
+  if (!staticStreamUrl && !options.resolveStreamUrl) {
+    throw new Error("An agent-browser stream URL or resolver is required.");
+  }
   const fetchImplementation = options.fetch ?? globalThis.fetch;
   if (!fetchImplementation) throw new Error("A fetch implementation is required.");
   const maximumBufferedBytes = options.maximumBufferedBytes ?? 0;
@@ -75,9 +99,11 @@ export async function relayAgentBrowserSession(
   let gatewayTimer: ReturnType<typeof setTimeout> | null = null;
   let localTimer: ReturnType<typeof setTimeout> | null = null;
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  let resolvingLocal = false;
   let sendingFrame = false;
   let pendingFrame: PendingFrame | null = null;
   let sourceFrameSequence = 0;
+  const activities = new Map<string, PendingActivity>();
   let navigationQueue = Promise.resolve();
   const sourceEpoch = randomUUID();
 
@@ -109,9 +135,14 @@ export async function relayAgentBrowserSession(
     }, delay);
   };
 
+  const clearActivities = () => {
+    activities.clear();
+  };
+
   const closeLocal = () => {
     const socket = localSocket;
     localSocket = null;
+    clearActivities();
     if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, "Gateway unavailable");
   };
 
@@ -160,7 +191,47 @@ export async function relayAgentBrowserSession(
   const queueFrame = (payload: Uint8Array, capturedAt: number) => {
     if (pendingFrame) metrics.framesDropped += 1;
     pendingFrame = { capturedAt, payload };
-    flushLatestFrame();
+    if (!flushTimer) {
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        flushLatestFrame();
+      }, 0);
+    }
+  };
+
+  const sendActivityStarted = (
+    activity: PendingActivity,
+    agentCursor?: BrowserAgentCursorState,
+  ) => {
+    if (gatewaySocket?.readyState !== WebSocket.OPEN) return;
+    gatewaySocket.send(JSON.stringify({
+      v: BROWSER_SESSION_VERSION,
+      type: "source.activity",
+      id: activity.command.id,
+      action: activity.command.action,
+      label: activity.label,
+      phase: "started",
+      timestamp: activity.command.timestamp,
+      ...(agentCursor ? { agentCursor } : {}),
+    }));
+  };
+
+  const sendActivityCompleted = (
+    result: AgentBrowserResultMessage,
+    label: string,
+  ) => {
+    if (gatewaySocket?.readyState !== WebSocket.OPEN) return;
+    gatewaySocket.send(JSON.stringify({
+      v: BROWSER_SESSION_VERSION,
+      type: "source.activity",
+      id: result.id,
+      action: result.action,
+      label,
+      phase: "completed",
+      timestamp: result.timestamp,
+      success: result.success,
+      durationMs: result.duration_ms,
+    }));
   };
 
   const handleLocalMessage = (data: RawData, isBinary: boolean) => {
@@ -204,10 +275,53 @@ export async function relayAgentBrowserSession(
         type: "source.page",
         url: message.url,
       }));
+      return;
+    }
+    if (message.type === "console" && options.agentCursorFromConsole) {
+      const agentCursor = options.agentCursorFromConsole(message);
+      const activity = [...activities.values()].at(-1);
+      if (agentCursor && activity) sendActivityStarted(activity, agentCursor);
+      return;
+    }
+    if (message.type === "command") {
+      const label = describeAgentBrowserCommand(message.action, message.params);
+      const activity: PendingActivity = {
+        command: message,
+        label,
+      };
+      activities.set(message.id, activity);
+      sendActivityStarted(activity);
+      return;
+    }
+    if (message.type === "result") {
+      const activity = activities.get(message.id);
+      const label = activity?.label ?? describeAgentBrowserCommand(message.action, {});
+      activities.delete(message.id);
+      sendActivityCompleted(message, label);
     }
   };
 
-  const connectLocal = () => {
+  const connectLocal = async () => {
+    if (
+      closed ||
+      localSocket ||
+      resolvingLocal ||
+      gatewaySocket?.readyState !== WebSocket.OPEN
+    ) return;
+    resolvingLocal = true;
+    let streamUrl: string;
+    try {
+      const resolved = options.resolveStreamUrl
+        ? await options.resolveStreamUrl()
+        : staticStreamUrl;
+      if (!resolved) throw new Error("The agent-browser stream URL resolver returned no URL.");
+      streamUrl = validateLoopbackStreamUrl(resolved);
+    } catch {
+      resolvingLocal = false;
+      scheduleLocalReconnect();
+      return;
+    }
+    resolvingLocal = false;
     if (closed || localSocket || gatewaySocket?.readyState !== WebSocket.OPEN) return;
     const socket = new WebSocket(streamUrl, { perMessageDeflate: false });
     localSocket = socket;
@@ -220,6 +334,7 @@ export async function relayAgentBrowserSession(
     socket.on("close", () => {
       if (socket !== localSocket) return;
       localSocket = null;
+      clearActivities();
       sendState("offline");
       scheduleLocalReconnect();
     });
@@ -244,7 +359,7 @@ export async function relayAgentBrowserSession(
       }
       gatewaySocket = socket;
       gatewayAttempt = 0;
-      connectLocal();
+      void connectLocal();
       flushLatestFrame();
       resolve();
     };

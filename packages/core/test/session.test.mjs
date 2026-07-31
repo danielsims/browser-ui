@@ -31,6 +31,35 @@ test("parses bounded source frames and rejects input-shaped viewer messages", ()
     type: "input",
     event: { kind: "pointer" },
   }), null);
+  assert.equal(parseBrowserSourceMessage({
+    v: 1,
+    type: "source.activity",
+    id: "command-one",
+    action: "fill",
+    label: "Entering text",
+    phase: "started",
+    timestamp: Date.now(),
+    agentCursor: { x: 0.25, y: 0.75, visible: true },
+  })?.type, "source.activity");
+  assert.equal(parseBrowserSourceMessage({
+    v: 1,
+    type: "source.activity",
+    id: "command-one",
+    action: "fill",
+    label: "x".repeat(161),
+    phase: "started",
+    timestamp: Date.now(),
+  }), null);
+  assert.equal(parseBrowserSourceMessage({
+    v: 1,
+    type: "source.activity",
+    id: "command-one",
+    action: "click",
+    label: "Clicking an element",
+    phase: "started",
+    timestamp: Date.now(),
+    agentCursor: { x: 1.1, y: 0.5, visible: true },
+  }), null);
   assert.deepEqual(parseBrowserViewerMessage({
     type: "input_navigation",
     direction: "back",

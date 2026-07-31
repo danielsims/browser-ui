@@ -4,12 +4,14 @@ import { useCallback, useEffect, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type {
   AgentBrowserFrameMetadata,
+  BrowserAgentActivity,
   BrowserSessionAccess,
   BrowserViewportSize,
   BrowserViewportStatus,
 } from "@browser-ui/core";
 import {
   browserKeyboardInput,
+  describeAgentBrowserCommand,
   mapContainedPointToViewport,
   parseAgentBrowserMessage,
   canSendBrowserInput,
@@ -33,6 +35,8 @@ export interface AgentBrowserViewportProps {
   resolveConnection?: () => Promise<Pick<BrowserSessionConnection, "url" | "protocols">>;
   viewportSize?: BrowserViewportSize;
   onStatusChange?: (status: BrowserViewportStatus) => void;
+  /** Reports the current structured browser command without exposing command values. */
+  onActivityChange?: (activity: BrowserAgentActivity | null) => void;
   /** Requests host-managed control when a viewer first interacts without a lease. */
   onInteractionIntent?: () => void | Promise<unknown>;
   onUrlChange?: (url: string) => void;
@@ -60,9 +64,31 @@ interface TouchGesture {
 }
 
 interface PendingViewportFrame {
-  data: string | Uint8Array;
+  data: string | ArrayBuffer;
   metadata: AgentBrowserFrameMetadata;
 }
+
+type PendingInteraction =
+  | {
+    kind: "click";
+    input: {
+      button: ActivePointer["button"];
+      clickCount: number;
+      modifiers: number;
+      x: number;
+      y: number;
+    };
+  }
+  | {
+    kind: "wheel";
+    input: {
+      deltaX: number;
+      deltaY: number;
+      modifiers: number;
+      x: number;
+      y: number;
+    };
+  };
 
 type LegacyWheelEvent = WheelEvent & {
   wheelDelta?: number;
@@ -99,13 +125,14 @@ export function AgentBrowserViewport({
   resolveConnection,
   viewportSize,
   onStatusChange,
+  onActivityChange,
   onInteractionIntent,
   onUrlChange,
   onViewportResize,
 }: AgentBrowserViewportProps) {
   const inputEnabled = interactive && (!access || canSendBrowserInput(access));
   const interactionIntentEnabled =
-    interactive && !inputEnabled && onInteractionIntent !== undefined;
+    !inputEnabled && onInteractionIntent !== undefined;
   const elementRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const metadataRef = useRef<AgentBrowserFrameMetadata | null>(null);
@@ -115,10 +142,17 @@ export function AgentBrowserViewport({
   const activePointerRef = useRef<ActivePointer | null>(null);
   const touchGestureRef = useRef<TouchGesture | null>(null);
   const interactiveRef = useRef(inputEnabled);
+  const interactionIntentRef = useRef(onInteractionIntent);
+  const interactionIntentPendingRef = useRef(false);
+  const pendingInteractionRef = useRef<PendingInteraction | null>(null);
   const statusChangeRef = useRef(onStatusChange);
+  const activityChangeRef = useRef(onActivityChange);
+  const activityIdRef = useRef<string | null>(null);
   const urlChangeRef = useRef(onUrlChange);
   const viewportResizeRef = useRef(onViewportResize);
+  interactionIntentRef.current = onInteractionIntent;
   statusChangeRef.current = onStatusChange;
+  activityChangeRef.current = onActivityChange;
   urlChangeRef.current = onUrlChange;
   viewportResizeRef.current = onViewportResize;
 
@@ -138,6 +172,30 @@ export function AgentBrowserViewport({
       { width: rect.width, height: rect.height },
       { width: metadata.deviceWidth, height: metadata.deviceHeight },
     );
+  }, []);
+
+  const requestInteractionControl = useCallback(() => {
+    if (interactionIntentPendingRef.current) return;
+    const request = interactionIntentRef.current;
+    if (!request) return;
+    interactionIntentPendingRef.current = true;
+    let result: void | Promise<unknown>;
+    try {
+      result = request();
+    } catch {
+      pendingInteractionRef.current = null;
+      interactionIntentPendingRef.current = false;
+      return;
+    }
+    void Promise.resolve(result)
+      .catch(() => {
+        pendingInteractionRef.current = null;
+      })
+      .finally(() => {
+        if (!interactiveRef.current) {
+          interactionIntentPendingRef.current = false;
+        }
+      });
   }, []);
 
   const releaseActivePointer = useCallback(() => {
@@ -162,12 +220,10 @@ export function AgentBrowserViewport({
           const message = pendingFrame; pendingFrame = null;
           let bitmap: ImageBitmap | undefined;
           try {
-            const bytes = typeof message.data === "string"
-              ? decodeBase64(message.data)
-              : new Uint8Array(message.data);
-            const jpeg = new Uint8Array(bytes.byteLength);
-            jpeg.set(bytes);
-            bitmap = await createImageBitmap(new Blob([jpeg.buffer], { type: "image/jpeg" }));
+            const jpeg = typeof message.data === "string"
+              ? decodeBase64(message.data).buffer
+              : message.data;
+            bitmap = await createImageBitmap(new Blob([jpeg], { type: "image/jpeg" }));
             if (closed) break;
             const canvas = canvasRef.current;
             if (canvas) {
@@ -194,6 +250,10 @@ export function AgentBrowserViewport({
     };
     const scheduleReconnect = () => {
       if (closed) return;
+      if (activityIdRef.current) {
+        activityIdRef.current = null;
+        activityChangeRef.current?.(null);
+      }
       statusChangeRef.current?.("disconnected");
       if (reconnectAttempt >= 8) {
         statusChangeRef.current?.("error");
@@ -266,7 +326,10 @@ export function AgentBrowserViewport({
           }
           lastRemoteFrameSequence = decoded.header.frameSequence;
           pendingFrame = {
-            data: new Uint8Array(decoded.jpeg),
+            data: event.data.slice(
+              decoded.jpeg.byteOffset,
+              decoded.jpeg.byteOffset + decoded.jpeg.byteLength,
+            ),
             metadata: decoded.header.metadata,
           };
           void drawLatestFrame();
@@ -277,12 +340,46 @@ export function AgentBrowserViewport({
         if (!message) return;
         if (message.type === "url") { urlChangeRef.current?.(message.url); return; }
         if (message.type === "cursor") { if (elementRef.current) elementRef.current.style.cursor = message.cursor; return; }
+        if (message.type === "command") {
+          activityIdRef.current = message.id;
+          activityChangeRef.current?.({
+            id: message.id,
+            action: message.action,
+            label: describeAgentBrowserCommand(message.action, message.params),
+            phase: "started",
+            timestamp: message.timestamp,
+          });
+          return;
+        }
+        if (message.type === "result") {
+          if (activityIdRef.current === message.id) {
+            activityIdRef.current = null;
+            activityChangeRef.current?.(null);
+          }
+          return;
+        }
+        if (message.type === "activity") {
+          if (message.phase === "started") {
+            activityIdRef.current = message.id;
+            activityChangeRef.current?.(message);
+          } else if (activityIdRef.current === message.id) {
+            activityIdRef.current = null;
+            activityChangeRef.current?.(null);
+          }
+          return;
+        }
         if (message.type === "status") {
           if (message.connected && message.screencasting) {
             reconnectAttempt = 0;
             statusChangeRef.current?.("connected");
           } else if (message.connected) statusChangeRef.current?.("connecting");
-          else statusChangeRef.current?.("disconnected");
+          else {
+            if (activityIdRef.current) {
+              activityIdRef.current = null;
+              activityChangeRef.current?.(null);
+            }
+            statusChangeRef.current?.("disconnected");
+          }
           return;
         }
         if (message.type === "error") { statusChangeRef.current?.("error"); return; }
@@ -379,9 +476,57 @@ export function AgentBrowserViewport({
   }, [inputEnabled]);
 
   useEffect(() => {
+    if (!inputEnabled) return;
+    interactionIntentPendingRef.current = false;
+    const pending = pendingInteractionRef.current;
+    pendingInteractionRef.current = null;
+    if (!pending) return;
+    if (pending.kind === "click") {
+      send({ type: "input_mouse", eventType: "mouseMoved", ...pending.input });
+      send({ type: "input_mouse", eventType: "mousePressed", ...pending.input });
+      send({ type: "input_mouse", eventType: "mouseReleased", ...pending.input });
+      return;
+    }
+    send({ type: "input_mouse", eventType: "mouseWheel", ...pending.input });
+  }, [inputEnabled, send]);
+
+  useEffect(() => {
     const element = elementRef.current;
-    if (!element || !inputEnabled) return;
+    if (!element || (!inputEnabled && !interactionIntentEnabled)) return;
     let lastStandardWheelAt = Number.NEGATIVE_INFINITY;
+    let wheelFrame: number | null = null;
+    let schedulingWheelFrame = false;
+    let pendingWheelInput: PendingInteraction & { kind: "wheel" } | null = null;
+    const scheduleWheelFlush = () => {
+      if (wheelFrame !== null || schedulingWheelFrame) return;
+      schedulingWheelFrame = true;
+      const frame = requestAnimationFrame(() => {
+        schedulingWheelFrame = false;
+        wheelFrame = null;
+        const pending = pendingWheelInput;
+        pendingWheelInput = null;
+        if (!pending) return;
+        send({ type: "input_mouse", eventType: "mouseWheel", ...pending.input });
+        scheduleWheelFlush();
+      });
+      if (schedulingWheelFrame) wheelFrame = frame;
+    };
+    const sendWheelInput = (input: PendingInteraction & { kind: "wheel" }) => {
+      if (wheelFrame === null && !schedulingWheelFrame) {
+        send({ type: "input_mouse", eventType: "mouseWheel", ...input.input });
+        scheduleWheelFlush();
+        return;
+      }
+      if (pendingWheelInput) {
+        pendingWheelInput.input = {
+          ...input.input,
+          deltaX: pendingWheelInput.input.deltaX + input.input.deltaX,
+          deltaY: pendingWheelInput.input.deltaY + input.input.deltaY,
+        };
+      } else {
+        pendingWheelInput = input;
+      }
+    };
     const handleWheel = (rawEvent: Event) => {
       const event = rawEvent as LegacyWheelEvent;
       if (
@@ -411,14 +556,27 @@ export function AgentBrowserViewport({
         bounds.height / metadata.deviceHeight,
       );
       if (!Number.isFinite(scale) || scale <= 0) return;
-      send({
-        type: "input_mouse",
-        eventType: "mouseWheel",
+      const input = {
         ...position,
         deltaX: deltas.deltaX / scale,
         deltaY: deltas.deltaY / scale,
         modifiers: modifiers(event),
-      });
+      };
+      if (inputEnabled) {
+        sendWheelInput({ kind: "wheel", input });
+        return;
+      }
+      const pending = pendingInteractionRef.current;
+      if (pending?.kind === "wheel") {
+        pending.input = {
+          ...input,
+          deltaX: pending.input.deltaX + input.deltaX,
+          deltaY: pending.input.deltaY + input.deltaY,
+        };
+      } else if (!pending) {
+        pendingInteractionRef.current = { kind: "wheel", input };
+      }
+      requestInteractionControl();
     };
     window.addEventListener("wheel", handleWheel, {
       capture: true,
@@ -429,10 +587,11 @@ export function AgentBrowserViewport({
       passive: false,
     });
     return () => {
+      if (wheelFrame !== null) cancelAnimationFrame(wheelFrame);
       window.removeEventListener("wheel", handleWheel, { capture: true });
       window.removeEventListener("mousewheel", handleWheel, { capture: true });
     };
-  }, [inputEnabled, point, send]);
+  }, [inputEnabled, interactionIntentEnabled, point, requestInteractionControl, send]);
 
   const mouse = (eventType: "mouseMoved" | "mousePressed", event: ReactPointerEvent<HTMLDivElement>) => {
     const position = point(event.clientX, event.clientY); if (!position) return;
@@ -520,14 +679,28 @@ export function AgentBrowserViewport({
       if (!interactionIntentEnabled || (event.key !== "Enter" && event.key !== " ")) return;
       event.preventDefault();
       event.stopPropagation();
-      void onInteractionIntent?.();
+      requestInteractionControl();
     }}
     onPointerDown={(event) => {
       if (!inputEnabled) {
         if (interactionIntentEnabled) {
           event.preventDefault();
           event.stopPropagation();
-          void onInteractionIntent?.();
+          const position = point(event.clientX, event.clientY);
+          if (position && !pendingInteractionRef.current) {
+            pendingInteractionRef.current = {
+              kind: "click",
+              input: {
+                ...position,
+                button: event.button === 2
+                  ? "right"
+                  : event.button === 1 ? "middle" : "left",
+                clickCount: event.detail || 1,
+                modifiers: modifiers(event),
+              },
+            };
+          }
+          requestInteractionControl();
         }
         return;
       }
@@ -566,7 +739,7 @@ export function AgentBrowserViewport({
   </div>;
 }
 
-function decodeBase64(encoded: string): Uint8Array {
+function decodeBase64(encoded: string): Uint8Array<ArrayBuffer> {
   const binary = atob(encoded);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {

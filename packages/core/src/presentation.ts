@@ -12,6 +12,18 @@ export interface BrowserAgentCursorState {
   backgroundColor?: string;
 }
 
+export interface BrowserAgentActivity {
+  id: string;
+  action: string;
+  label: string;
+  phase: "started" | "completed";
+  timestamp: number;
+  /** Optional normalized cursor position associated with this action. */
+  agentCursor?: BrowserAgentCursorState;
+  success?: boolean;
+  durationMs?: number;
+}
+
 export interface BrowserRecordingTimelineEvent {
   at: number;
   agentCursor?: BrowserAgentCursorState;

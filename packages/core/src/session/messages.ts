@@ -1,4 +1,5 @@
 import type { BrowserViewportSize } from "../geometry.js";
+import type { BrowserAgentActivity, BrowserAgentCursorState } from "../presentation.js";
 import {
   BROWSER_SESSION_VERSION,
   type BrowserSessionDescriptor,
@@ -109,6 +110,11 @@ export interface BrowserSourcePageMessage {
   url: string;
 }
 
+export interface BrowserSourceActivityMessage extends BrowserAgentActivity {
+  v: typeof BROWSER_SESSION_VERSION;
+  type: "source.activity";
+}
+
 export interface BrowserMouseInputMessage {
   type: "input_mouse";
   eventType: "mouseMoved" | "mousePressed" | "mouseReleased" | "mouseWheel";
@@ -153,6 +159,7 @@ export type BrowserSourceMessage =
   | BrowserSourceFrameMessage
   | BrowserSourceStateMessage
   | BrowserSourcePageMessage
+  | BrowserSourceActivityMessage
   | BrowserSessionHeartbeatMessage;
 
 export type BrowserViewerMessage =
@@ -196,6 +203,10 @@ export function parseBrowserSourceMessage(
     case "source.page":
       return typeof decoded.url === "string" && isHttpUrl(decoded.url)
         ? decoded as unknown as BrowserSourcePageMessage
+        : null;
+    case "source.activity":
+      return validActivity(decoded)
+        ? decoded as unknown as BrowserSourceActivityMessage
         : null;
     case "heartbeat":
       return finite(decoded.sentAt)
@@ -303,6 +314,28 @@ function isSourceStatus(value: unknown): value is BrowserSourceStateMessage["sta
   return value === "waiting" || value === "live" || value === "offline";
 }
 
+function validActivity(value: Record<string, unknown>): boolean {
+  return nonEmptyBoundedString(value.id, 256) &&
+    nonEmptyBoundedString(value.action, 128) &&
+    nonEmptyBoundedString(value.label, 160) &&
+    (value.phase === "started" || value.phase === "completed") &&
+    finite(value.timestamp) &&
+    (value.agentCursor === undefined || validAgentCursor(value.agentCursor)) &&
+    (value.success === undefined || typeof value.success === "boolean") &&
+    (value.durationMs === undefined || optionalNonNegativeInteger(value.durationMs));
+}
+
+function validAgentCursor(value: unknown): value is BrowserAgentCursorState {
+  if (!isRecord(value) || !unitCoordinate(value.x) || !unitCoordinate(value.y)) return false;
+  return (value.label === undefined || nonEmptyBoundedString(value.label, 80)) &&
+    (value.pressed === undefined || typeof value.pressed === "boolean") &&
+    (value.typing === undefined || typeof value.typing === "boolean") &&
+    (value.visible === undefined || typeof value.visible === "boolean") &&
+    (value.variant === undefined || value.variant === "light" || value.variant === "dark") &&
+    (value.size === undefined || boundedFinite(value.size, 256) && value.size > 0) &&
+    (value.backgroundColor === undefined || nonEmptyBoundedString(value.backgroundColor, 128));
+}
+
 function isHttpUrl(value: string): boolean {
   try {
     const url = new URL(value);
@@ -324,6 +357,10 @@ function coordinate(value: unknown): value is number {
   return finite(value) && value >= 0 && value <= 8192;
 }
 
+function unitCoordinate(value: unknown): value is number {
+  return finite(value) && value >= 0 && value <= 1;
+}
+
 function modifierMask(value: unknown): value is number {
   return boundedInteger(value, 0, 15);
 }
@@ -338,6 +375,10 @@ function boundedFinite(value: unknown, magnitude: number): value is number {
 
 function boundedString(value: unknown, maximum: number): value is string {
   return typeof value === "string" && value.length <= maximum;
+}
+
+function nonEmptyBoundedString(value: unknown, maximum: number): value is string {
+  return boundedString(value, maximum) && value.length > 0;
 }
 
 function mouseEventType(value: unknown): value is BrowserMouseInputMessage["eventType"] {

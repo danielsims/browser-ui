@@ -36,20 +36,6 @@ export async function POST(request: Request) {
           if (commandId) {
             const command = await sandbox.getCommand(commandId);
             await command.kill("SIGTERM");
-            let stopTimer: ReturnType<typeof setTimeout> | undefined;
-            try {
-              await Promise.race([
-                command.wait(),
-                new Promise((_, reject) => {
-                  stopTimer = setTimeout(
-                    () => reject(new Error("Timed out while stopping the browser agent")),
-                    10_000,
-                  );
-                }),
-              ]);
-            } finally {
-              if (stopTimer) clearTimeout(stopTimer);
-            }
             await clearAgentCommand(sandbox, commandId);
           }
         } catch (error) {
