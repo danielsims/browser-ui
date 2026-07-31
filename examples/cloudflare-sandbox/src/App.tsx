@@ -506,7 +506,7 @@ export default function App() {
             />
             <div className="composer-footer">
               <span className="model-label">
-                <i /> GPT-OSS 120B
+                <i /> GPT-5.6 Luna
               </span>
               <button
                 aria-label="Send instruction"

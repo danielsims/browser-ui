@@ -9,7 +9,7 @@ const MODE_PATH = "/workspace/.browser-ui-mode";
 const COMMAND_PATH = "/workspace/.browser-ui-agent-command";
 const SESSION_KEY = /^[a-f0-9]{32}$/;
 const SESSION_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
-const DEFAULT_MODEL = "@cf/openai/gpt-oss-120b";
+const DEFAULT_MODEL = "openai/gpt-5.6-luna";
 const BROWSER_LAUNCH_ARGS =
   "--no-sandbox,--disable-dev-shm-usage,--disable-gpu";
 
@@ -315,20 +315,7 @@ async function aiGatewayRoute(request: Request, env: Env): Promise<Response> {
     env.AI as unknown as {
       run(model: string, input: Record<string, unknown>): Promise<unknown>;
     }
-  ).run(model, {
-    ...input,
-    model: undefined,
-    max_tokens: input.max_tokens ?? 2_048,
-  });
-
-  if (result instanceof ReadableStream) {
-    return new Response(result, {
-      headers: {
-        "cache-control": "no-store",
-        "content-type": "text/event-stream",
-      },
-    });
-  }
+  ).run(model, toResponsesRequest(input));
 
   return Response.json(toChatCompletion(result, model), {
     headers: { "cache-control": "no-store" },
@@ -611,22 +598,59 @@ function toChatCompletion(result: unknown, model: string): unknown {
     return result;
   }
   const output = (result ?? {}) as {
+    error?: { message?: unknown };
+    output?: unknown;
+    output_text?: unknown;
     response?: unknown;
     tool_calls?: unknown;
     usage?: Record<string, number>;
   };
-  const toolCalls = Array.isArray(output.tool_calls)
-    ? output.tool_calls.map(normalizeToolCall)
-    : undefined;
+  if (typeof output.error?.message === "string") {
+    throw new Error(output.error.message);
+  }
+
+  const responseItems = Array.isArray(output.output) ? output.output : [];
+  const toolCalls = [
+    ...(Array.isArray(output.tool_calls) ? output.tool_calls : []),
+    ...responseItems.filter(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        (item as { type?: unknown }).type === "function_call",
+    ),
+  ].map(normalizeToolCall);
+  const responseText =
+    typeof output.output_text === "string"
+      ? output.output_text
+      : responseItems
+          .flatMap((item) => {
+            const content =
+              item && typeof item === "object"
+                ? (item as { content?: unknown }).content
+                : undefined;
+            return Array.isArray(content) ? content : [];
+          })
+          .filter(
+            (item) =>
+              item &&
+              typeof item === "object" &&
+              (item as { type?: unknown }).type === "output_text",
+          )
+          .map((item) => (item as { text?: unknown }).text)
+          .filter((text): text is string => typeof text === "string")
+          .join("");
+  const usage = output.usage ?? {};
   return {
     choices: [
       {
-        finish_reason: toolCalls?.length ? "tool_calls" : "stop",
+        finish_reason: toolCalls.length ? "tool_calls" : "stop",
         index: 0,
         message: {
-          content: typeof output.response === "string" ? output.response : null,
+          content:
+            responseText ||
+            (typeof output.response === "string" ? output.response : null),
           role: "assistant",
-          ...(toolCalls?.length ? { tool_calls: toolCalls } : {}),
+          ...(toolCalls.length ? { tool_calls: toolCalls } : {}),
         },
       },
     ],
@@ -634,30 +658,173 @@ function toChatCompletion(result: unknown, model: string): unknown {
     id: `chatcmpl_${crypto.randomUUID().replaceAll("-", "")}`,
     model,
     object: "chat.completion",
-    usage: output.usage ?? {},
+    usage: {
+      completion_tokens: usage.output_tokens ?? usage.completion_tokens ?? 0,
+      prompt_tokens: usage.input_tokens ?? usage.prompt_tokens ?? 0,
+      total_tokens: usage.total_tokens ?? 0,
+    },
+  };
+}
+
+function toResponsesRequest(
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  const messages = Array.isArray(input.messages) ? input.messages : [];
+  const instructions: string[] = [];
+  const responseInput: unknown[] = [];
+
+  for (const value of messages) {
+    if (!value || typeof value !== "object") continue;
+    const message = value as {
+      content?: unknown;
+      role?: unknown;
+      tool_call_id?: unknown;
+      tool_calls?: unknown;
+    };
+    const content = messageText(message.content);
+
+    if (message.role === "system" || message.role === "developer") {
+      if (content) instructions.push(content);
+      continue;
+    }
+    if (message.role === "tool") {
+      if (typeof message.tool_call_id === "string") {
+        responseInput.push({
+          call_id: message.tool_call_id,
+          output: content,
+          type: "function_call_output",
+        });
+      }
+      continue;
+    }
+    if (message.role !== "user" && message.role !== "assistant") continue;
+
+    if (content) {
+      responseInput.push({ content, role: message.role });
+    }
+    if (message.role === "assistant" && Array.isArray(message.tool_calls)) {
+      responseInput.push(
+        ...message.tool_calls.map((call, index) =>
+          toResponseFunctionCall(call, index),
+        ),
+      );
+    }
+  }
+
+  const tools = Array.isArray(input.tools)
+    ? input.tools.map(toResponseTool).filter((tool) => tool !== null)
+    : undefined;
+
+  return {
+    input: responseInput,
+    ...(instructions.length ? { instructions: instructions.join("\n\n") } : {}),
+    max_output_tokens:
+      input.max_completion_tokens ?? input.max_tokens ?? 2_048,
+    ...(typeof input.parallel_tool_calls === "boolean"
+      ? { parallel_tool_calls: input.parallel_tool_calls }
+      : {}),
+    ...(typeof input.temperature === "number"
+      ? { temperature: input.temperature }
+      : {}),
+    ...(typeof input.top_p === "number" ? { top_p: input.top_p } : {}),
+    ...(tools?.length ? { tools } : {}),
+    ...(input.tool_choice !== undefined
+      ? { tool_choice: toResponseToolChoice(input.tool_choice) }
+      : {}),
+    stream: false,
+  };
+}
+
+function messageText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => {
+      if (!part || typeof part !== "object") return "";
+      const text = (part as { text?: unknown }).text;
+      return typeof text === "string" ? text : "";
+    })
+    .join("");
+}
+
+function toResponseTool(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object") return null;
+  const tool = value as {
+    function?: {
+      description?: unknown;
+      name?: unknown;
+      parameters?: unknown;
+      strict?: unknown;
+    };
+    type?: unknown;
+  };
+  if (tool.type !== "function" || typeof tool.function?.name !== "string") {
+    return null;
+  }
+  return {
+    type: "function",
+    name: tool.function.name,
+    ...(typeof tool.function.description === "string"
+      ? { description: tool.function.description }
+      : {}),
+    ...(tool.function.parameters && typeof tool.function.parameters === "object"
+      ? { parameters: tool.function.parameters }
+      : {}),
+    ...(typeof tool.function.strict === "boolean"
+      ? { strict: tool.function.strict }
+      : {}),
+  };
+}
+
+function toResponseToolChoice(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const choice = value as {
+    function?: { name?: unknown };
+    type?: unknown;
+  };
+  if (choice.type === "function" && typeof choice.function?.name === "string") {
+    return { name: choice.function.name, type: "function" };
+  }
+  return value;
+}
+
+function toResponseFunctionCall(value: unknown, index: number): unknown {
+  const call = normalizeToolCall(value, index) as {
+    function: { arguments: string; name: string };
+    id: string;
+  };
+  return {
+    arguments: call.function.arguments,
+    call_id: call.id,
+    name: call.function.name,
+    type: "function_call",
   };
 }
 
 function normalizeToolCall(value: unknown, index: number): unknown {
   const call = (value ?? {}) as {
     arguments?: unknown;
+    call_id?: unknown;
     function?: { arguments?: unknown; name?: unknown };
     id?: unknown;
     name?: unknown;
     type?: unknown;
   };
-  if (call.function && typeof call.function.name === "string") return call;
+  const argumentsValue = call.function?.arguments ?? call.arguments;
+  const name = call.function?.name ?? call.name;
   return {
     function: {
       arguments:
-        typeof call.arguments === "string"
-          ? call.arguments
-          : JSON.stringify(call.arguments ?? {}),
-      name: typeof call.name === "string" ? call.name : "unknown_tool",
+        typeof argumentsValue === "string"
+          ? argumentsValue
+          : JSON.stringify(argumentsValue ?? {}),
+      name: typeof name === "string" ? name : "unknown_tool",
     },
     id:
       typeof call.id === "string"
         ? call.id
+        : typeof call.call_id === "string"
+          ? call.call_id
         : `call_${index}_${crypto.randomUUID().slice(0, 8)}`,
     type: "function",
   };

@@ -44,11 +44,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid #ff5e20;
+  border: 1px solid #dedede;
   border-radius: 8px;
-  background: #ff5e20;
-  box-shadow: 0 1px 2px rgba(120, 50, 0, .2);
-  color: #fff;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
+  color: #18181b;
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -60,13 +60,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     transform .16s ease;
 }
 .deploy-button:hover {
-  border-color: #e95018;
-  background: #e95018;
-  box-shadow: 0 2px 6px rgba(120, 50, 0, .24);
+  border-color: #d4d4d4;
+  background: #f7f7f7;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .1);
   transform: translateY(-1px);
 }
 .deploy-button:active {
-  box-shadow: 0 1px 2px rgba(120, 50, 0, .2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
   transform: translateY(0);
 }
 .cloudflare-mark {
@@ -77,17 +77,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .deploy-button.compact {
   height: 32px;
   padding: 0 12px;
-  border-color: #ff5e20;
+  border-color: #18181b;
   border-radius: 7px;
-  background: #ff5e20;
-  box-shadow: 0 1px 2px rgba(120, 50, 0, .16);
+  background: #18181b;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .16);
   color: #fff;
   font-size: 11px;
 }
 .deploy-button.compact:hover {
-  border-color: #e95018;
-  background: #e95018;
-  box-shadow: 0 2px 5px rgba(120, 50, 0, .2);
+  border-color: #27272a;
+  background: #27272a;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, .2);
 }
 .deploy-button.compact .cloudflare-mark {
   width: 17px;
