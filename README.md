@@ -115,6 +115,9 @@ Run the demo against a real local `agent-browser` session:
 pnpm dev:live
 ```
 
+Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) for the
+branch, pull request, testing, and Changesets workflow.
+
 ## License
 
 MIT
