@@ -1,0 +1,9 @@
+{
+  "name": "browser-ui-cloudflare-sandbox-runtime",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@browser-ui/gateway": "^0.2.0",
+    "agent-browser": "0.33.1"
+  }
+}

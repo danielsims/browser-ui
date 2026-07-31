@@ -1,0 +1,37 @@
+{
+  "name": "@browser-ui/example-cloudflare-sandbox",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "deploy": "vite build && wrangler deploy",
+    "dev": "vite",
+    "showcase": "vite --config vite.showcase.config.ts --host 127.0.0.1 --port 3322",
+    "typecheck": "pnpm --filter @browser-ui/react build && tsc --noEmit"
+  },
+  "dependencies": {
+    "@browser-ui/react": "^0.2.0",
+    "@cloudflare/sandbox": "0.12.4",
+    "@fontsource-variable/geist": "5.3.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.49.0",
+    "@cloudflare/workers-types": "5.20260731.1",
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "^5.9.3",
+    "vite": "8.2.0",
+    "wrangler": "4.116.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DEMO_ACCESS_CODE": {
+        "description": "Set a private access code that protects this deployment's Sandbox and Workers AI usage."
+      }
+    }
+  }
+}

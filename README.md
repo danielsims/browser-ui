@@ -56,7 +56,14 @@ import "@browser-ui/react/styles.css";
 granted control. Client-side state is not authorization; the stream server must
 validate every input event.
 
-See the [live demo](https://browser-ui-red.vercel.app).
+See the [live demo](https://browser-ui.danielsi.ms).
+
+## Deployable examples
+
+- [Vercel Sandbox](./examples/vercel-sandbox) uses Vercel Sandbox and AI
+  Gateway.
+- [Cloudflare Sandbox](./examples/cloudflare-sandbox) uses Cloudflare Sandbox
+  and Workers AI, with automatic placement near the request that starts it.
 
 ## Packages
 
