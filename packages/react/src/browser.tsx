@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { AgentBrowserViewport, type AgentBrowserViewportProps, type BrowserViewportSize } from "./agent-browser-viewport";
 import { BrowserOperatingOverlay } from "./operating-overlay";
 import { BrowserDisplayControls, BrowserFullscreenTrigger, BrowserPictureInPictureTrigger } from "./browser-display";
@@ -8,7 +8,9 @@ import { BrowserRoot, type BrowserRootProps } from "./browser-root";
 import { BrowserLoading, BrowserSurface } from "./browser-surface";
 import { BrowserToolbar } from "./browser-toolbar";
 import { BrowserAgentCursor, type BrowserAgentCursorState } from "./agent-cursor";
-import type { BrowserSessionAccess, BrowserViewportStatus } from "@browser-ui/core";
+import type { BrowserAgentActivity, BrowserSessionAccess, BrowserViewportStatus } from "@browser-ui/core";
+
+const agentCursorIdleTimeoutMs = 4_000;
 
 export interface BrowserProps extends Pick<BrowserRootProps, "className" | "colorScheme" | "defaultMode" | "fullscreenTarget" | "mode" | "onModeChange" | "style" | "variant">, Pick<AgentBrowserViewportProps, "ariaLabel" | "createWebSocket" | "onViewportResize" | "protocols" | "resolveConnection"> {
   /** WebSocket URL returned by `agent-browser stream status`. */
@@ -40,6 +42,7 @@ export interface BrowserProps extends Pick<BrowserRootProps, "className" | "colo
   onTakeControl?: () => void;
   onInteractionIntent?: AgentBrowserViewportProps["onInteractionIntent"];
   onStatusChange?: (status: BrowserViewportStatus) => void;
+  onActivityChange?: (activity: BrowserAgentActivity | null) => void;
   onUrlChange?: (url: string) => void;
 }
 
@@ -59,6 +62,7 @@ export function Browser({
   interactive = false,
   loadingLabel = "Opening browser",
   onNavigate,
+  onActivityChange,
   onModeChange,
   onReload,
   onStatusChange,
@@ -83,7 +87,17 @@ export function Browser({
 }: BrowserProps) {
   const [status, setStatus] = useState<BrowserViewportStatus>("connecting");
   const [draftUrl, setDraftUrl] = useState(url);
+  const [activity, setActivity] = useState<BrowserAgentActivity | null>(null);
+  const [lastActivity, setLastActivity] = useState<BrowserAgentActivity | null>(null);
+  const [liveAgentCursor, setLiveAgentCursor] = useState<BrowserAgentCursorState | null>(null);
+  const agentCursorIdleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => { setDraftUrl(url); }, [url]);
+  useEffect(() => {
+    if (!operating && activity === null) setLastActivity(null);
+  }, [activity, operating]);
+  useEffect(() => () => {
+    if (agentCursorIdleTimer.current) clearTimeout(agentCursorIdleTimer.current);
+  }, []);
 
   const handleStatusChange = (next: BrowserViewportStatus) => {
     setStatus(next);
@@ -93,6 +107,26 @@ export function Browser({
     setDraftUrl(next);
     onUrlChange?.(next);
   };
+  const handleActivityChange = (next: BrowserAgentActivity | null) => {
+    setActivity(next);
+    if (next) setLastActivity(next);
+    if (next?.agentCursor) {
+      if (agentCursorIdleTimer.current) clearTimeout(agentCursorIdleTimer.current);
+      setLiveAgentCursor(next.agentCursor);
+      if (next.agentCursor.visible !== false) {
+        agentCursorIdleTimer.current = setTimeout(() => {
+          setLiveAgentCursor((cursor) => cursor ? { ...cursor, visible: false } : null);
+          agentCursorIdleTimer.current = null;
+        }, agentCursorIdleTimeoutMs);
+      }
+    }
+    onActivityChange?.(next);
+  };
+  const activelyOperating = operating || activity !== null;
+  const activeOperatingLabel = activity?.label
+    ?? (operating ? lastActivity?.label : undefined)
+    ?? operatingLabel;
+  const activeAgentCursor = agentCursor ?? liveAgentCursor ?? undefined;
   const loading = status !== "connected";
   const loadingCopy = status === "error"
     ? "Browser connection failed"
@@ -126,8 +160,8 @@ export function Browser({
       loading={loading}
       loadingFallback={<BrowserLoading label={loadingCopy} />}
       overlay={<>
-        {operating ? <BrowserOperatingOverlay label={operatingLabel} onTakeControl={onTakeControl} /> : null}
-        {agentCursor ? <BrowserAgentCursor {...agentCursor} /> : null}
+        {activelyOperating ? <BrowserOperatingOverlay label={activeOperatingLabel} onTakeControl={onTakeControl} /> : null}
+        {activeAgentCursor ? <BrowserAgentCursor {...activeAgentCursor} /> : null}
       </>}
     >
       <AgentBrowserViewport
@@ -138,7 +172,8 @@ export function Browser({
         createWebSocket={createWebSocket}
         ariaLabel={ariaLabel}
         className={viewportClassName}
-        interactive={interactive && !operating}
+        interactive={interactive && !activelyOperating}
+        onActivityChange={handleActivityChange}
         onInteractionIntent={onInteractionIntent}
         viewportSize={viewportSize}
         onStatusChange={handleStatusChange}

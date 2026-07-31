@@ -6,6 +6,7 @@ import {
   browserControlState,
   browserKeyboardInput,
   canSendBrowserInput,
+  describeAgentBrowserCommand,
   mapContainedPointToViewport,
   parseAgentBrowserMessage,
 } from "../dist/index.js";
@@ -37,6 +38,18 @@ test("parses supported agent-browser messages tolerantly", () => {
   }))?.type, "status");
   assert.equal(parseAgentBrowserMessage({ type: "status", connected: true }), null);
   assert.equal(parseAgentBrowserMessage({ type: "future-message" }), null);
+});
+
+test("describes browser commands without exposing entered values", () => {
+  assert.equal(
+    describeAgentBrowserCommand("open", { url: "https://example.com/private?token=secret" }),
+    "Opening example.com",
+  );
+  assert.equal(
+    describeAgentBrowserCommand("fill", { selector: "#password", value: "hunter2" }),
+    "Entering text",
+  );
+  assert.equal(describeAgentBrowserCommand("snapshot", {}), "Reading the page");
 });
 
 test("matches the shared agent-browser protocol fixtures", () => {

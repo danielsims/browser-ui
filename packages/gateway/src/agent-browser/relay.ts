@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
 import {
   BROWSER_SESSION_VERSION,
+  describeAgentBrowserCommand,
   encodeBrowserSessionBinaryFrame,
   normalizeGatewayOrigin,
   parseAgentBrowserMessage,
   parseBrowserSourceInputMessage,
+  type AgentBrowserCommandMessage,
+  type AgentBrowserConsoleMessage,
+  type AgentBrowserResultMessage,
+  type BrowserAgentCursorState,
   type BrowserSessionBinaryFrameHeader,
   type BrowserSessionConnection,
   type BrowserSessionDescriptor,
@@ -25,6 +30,13 @@ export interface AgentBrowserSourceOptions {
   reconnectMaximumDelayMs?: number;
   maximumBufferedBytes?: number;
   navigate?: (direction: "back" | "forward") => Promise<void>;
+  /**
+   * Optionally maps a source console event to a normalized visual cursor.
+   * Useful with a page init script that reports the browser's real pointer events.
+   */
+  agentCursorFromConsole?: (
+    message: AgentBrowserConsoleMessage,
+  ) => BrowserAgentCursorState | null;
 }
 
 export interface AgentBrowserSourceMetrics {
@@ -47,6 +59,11 @@ export interface AgentBrowserSourceHandle {
 interface PendingFrame {
   capturedAt: number;
   payload: Uint8Array;
+}
+
+interface PendingActivity {
+  command: AgentBrowserCommandMessage;
+  label: string;
 }
 
 export async function relayAgentBrowserSession(
@@ -86,6 +103,7 @@ export async function relayAgentBrowserSession(
   let sendingFrame = false;
   let pendingFrame: PendingFrame | null = null;
   let sourceFrameSequence = 0;
+  const activities = new Map<string, PendingActivity>();
   let navigationQueue = Promise.resolve();
   const sourceEpoch = randomUUID();
 
@@ -117,9 +135,14 @@ export async function relayAgentBrowserSession(
     }, delay);
   };
 
+  const clearActivities = () => {
+    activities.clear();
+  };
+
   const closeLocal = () => {
     const socket = localSocket;
     localSocket = null;
+    clearActivities();
     if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, "Gateway unavailable");
   };
 
@@ -171,6 +194,41 @@ export async function relayAgentBrowserSession(
     flushLatestFrame();
   };
 
+  const sendActivityStarted = (
+    activity: PendingActivity,
+    agentCursor?: BrowserAgentCursorState,
+  ) => {
+    if (gatewaySocket?.readyState !== WebSocket.OPEN) return;
+    gatewaySocket.send(JSON.stringify({
+      v: BROWSER_SESSION_VERSION,
+      type: "source.activity",
+      id: activity.command.id,
+      action: activity.command.action,
+      label: activity.label,
+      phase: "started",
+      timestamp: activity.command.timestamp,
+      ...(agentCursor ? { agentCursor } : {}),
+    }));
+  };
+
+  const sendActivityCompleted = (
+    result: AgentBrowserResultMessage,
+    label: string,
+  ) => {
+    if (gatewaySocket?.readyState !== WebSocket.OPEN) return;
+    gatewaySocket.send(JSON.stringify({
+      v: BROWSER_SESSION_VERSION,
+      type: "source.activity",
+      id: result.id,
+      action: result.action,
+      label,
+      phase: "completed",
+      timestamp: result.timestamp,
+      success: result.success,
+      durationMs: result.duration_ms,
+    }));
+  };
+
   const handleLocalMessage = (data: RawData, isBinary: boolean) => {
     if (isBinary) return;
     const message = parseAgentBrowserMessage(rawText(data));
@@ -212,6 +270,29 @@ export async function relayAgentBrowserSession(
         type: "source.page",
         url: message.url,
       }));
+      return;
+    }
+    if (message.type === "console" && options.agentCursorFromConsole) {
+      const agentCursor = options.agentCursorFromConsole(message);
+      const activity = [...activities.values()].at(-1);
+      if (agentCursor && activity) sendActivityStarted(activity, agentCursor);
+      return;
+    }
+    if (message.type === "command") {
+      const label = describeAgentBrowserCommand(message.action, message.params);
+      const activity: PendingActivity = {
+        command: message,
+        label,
+      };
+      activities.set(message.id, activity);
+      sendActivityStarted(activity);
+      return;
+    }
+    if (message.type === "result") {
+      const activity = activities.get(message.id);
+      const label = activity?.label ?? describeAgentBrowserCommand(message.action, {});
+      activities.delete(message.id);
+      sendActivityCompleted(message, label);
     }
   };
 
@@ -248,6 +329,7 @@ export async function relayAgentBrowserSession(
     socket.on("close", () => {
       if (socket !== localSocket) return;
       localSocket = null;
+      clearActivities();
       sendState("offline");
       scheduleLocalReconnect();
     });

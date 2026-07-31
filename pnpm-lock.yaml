@@ -103,7 +103,7 @@ importers:
     dependencies:
       '@browser-ui/react':
         specifier: ^0.2.0
-        version: 0.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        version: link:../../packages/react
       '@vercel/sandbox':
         specifier: 2.9.0
         version: 2.9.0
@@ -724,15 +724,6 @@ packages:
   '@babel/types@7.29.7':
     resolution: {integrity: sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA==}
     engines: {node: '>=6.9.0'}
-
-  '@browser-ui/core@0.2.0':
-    resolution: {integrity: sha512-mxj7c38nDi/OXwhbhEF7ZNPwPF+5pY+kCBco2zLpTh3xdXpP7anS1b6fdh3WxqTpmXqDIoD2BzFrTsWMIMS25A==}
-
-  '@browser-ui/react@0.2.0':
-    resolution: {integrity: sha512-sFaa+21LrU2o0/ZAeskRgyaKoax/Fhj0s9U1A2ITniPjpB76EVOAJtcCum+muwvlXHVbyrwPDEEchZaoqZg5xg==}
-    peerDependencies:
-      react: '>=18'
-      react-dom: '>=18'
 
   '@changesets/apply-release-plan@7.1.1':
     resolution: {integrity: sha512-9qPCm/rLx/xoOFXIHGB229+4GOL76S4MC+7tyOuTsR6+1jYlfFDQORdvwR5hDA6y4FL2BPt3qpbcQIS+dW85LA==}
@@ -4805,17 +4796,6 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
-
-  '@browser-ui/core@0.2.0': {}
-
-  '@browser-ui/react@0.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
-    dependencies:
-      '@browser-ui/core': 0.2.0
-      motion: 12.42.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
-    transitivePeerDependencies:
-      - '@emotion/is-prop-valid'
 
   '@changesets/apply-release-plan@7.1.1':
     dependencies:

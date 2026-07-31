@@ -76,6 +76,9 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
     viewport: { width: 1280, height: 800 },
     authorize: () => ({ authorization: "Bearer source" }),
     navigate: async (direction) => resolveNavigation(direction),
+    agentCursorFromConsole: (message) => message.text === "cursor:25:75"
+      ? { x: 0.25, y: 0.75, visible: true }
+      : null,
   });
   context.after(async () => {
     await source.close();
@@ -118,6 +121,57 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
   );
   assert.equal(source.getMetrics().framesPublished, 1);
   assert.equal(gateway.getMetrics().sourceFramesReceived, 1);
+
+  const startedActivity = nextJsonMessage(
+    viewer,
+    (message) => message.type === "activity" && message.phase === "started",
+  );
+  localSocket.send(JSON.stringify({
+    type: "command",
+    action: "fill",
+    id: "fill-one",
+    params: { selector: "#password", value: "not-for-viewers" },
+    timestamp: Date.now(),
+  }));
+  const started = await startedActivity;
+  assert.equal(started.label, "Entering text");
+  assert.equal(JSON.stringify(started).includes("not-for-viewers"), false);
+
+  const cursorActivity = nextJsonMessage(
+    viewer,
+    (message) => message.type === "activity" &&
+      message.phase === "started" &&
+      message.agentCursor,
+  );
+  localSocket.send(JSON.stringify({
+    type: "console",
+    level: "debug",
+    text: "cursor:25:75",
+    timestamp: Date.now(),
+  }));
+  const cursorStarted = await cursorActivity;
+  assert.deepEqual(cursorStarted.agentCursor, {
+    x: 0.25,
+    y: 0.75,
+    visible: true,
+  });
+
+  const completedActivity = nextJsonMessage(
+    viewer,
+    (message) => message.type === "activity" && message.phase === "completed",
+  );
+  localSocket.send(JSON.stringify({
+    type: "result",
+    id: "fill-one",
+    action: "fill",
+    success: true,
+    data: null,
+    duration_ms: 42,
+    timestamp: Date.now(),
+  }));
+  const completed = await completedActivity;
+  assert.equal(completed.id, "fill-one");
+  assert.equal(completed.durationMs, 42);
 
   const latestBurstFrame = new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("Timed out waiting for latest burst frame")), 3_000);
@@ -310,6 +364,25 @@ function frameWithMarker(viewer, marker) {
       clearTimeout(timeout);
       viewer.off("message", listener);
       resolve(decoded);
+    };
+    viewer.on("message", listener);
+    viewer.on("error", reject);
+  });
+}
+
+function nextJsonMessage(viewer, predicate) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("Timed out waiting for viewer message")),
+      2_000,
+    );
+    const listener = (data, isBinary) => {
+      if (isBinary) return;
+      const message = JSON.parse(data.toString());
+      if (!predicate(message)) return;
+      clearTimeout(timeout);
+      viewer.off("message", listener);
+      resolve(message);
     };
     viewer.on("message", listener);
     viewer.on("error", reject);

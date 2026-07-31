@@ -63,19 +63,22 @@ export async function POST(request: Request) {
     const { command } = launch;
     const result = await command.wait();
     await touchDemoSession(sandbox).catch(() => undefined);
-    await clearAgentCommand(sandbox, command.cmdId);
+    await clearAgentCommand(sandbox, command.cmdId).catch(() => undefined);
     active = null;
+    const output = (await result.stdout()).trim();
+    const parsed = parseAgentOutput(output);
+    if (parsed?.success === true) {
+      return Response.json({ reply: parsed.text?.trim() || "Done." });
+    }
     if (result.exitCode !== 0) {
-      if (await readMode(sandbox) === "human") {
+      if (await readMode(sandbox).catch(() => "agent") === "human") {
         return Response.json({ canceled: true, reply: "Handed the browser to you." });
       }
-      const detail = (await result.stderr()).trim();
+      const detail = parsed?.error?.trim() || (await result.stderr()).trim();
       throw new Error(detail || "The browser agent stopped unexpectedly");
     }
-    const output = (await result.stdout()).trim();
-    const parsed = JSON.parse(output) as { error?: string; success?: boolean; text?: string };
-    if (parsed.success === false) throw new Error(parsed.error || "The browser agent failed");
-    return Response.json({ reply: parsed.text?.trim() || "Done." });
+    if (!parsed) throw new Error("The browser agent returned an invalid response");
+    throw new Error(parsed.error || "The browser agent failed");
   } catch (error) {
     const current = active as { commandId: string; key: string } | null;
     if (current) {
@@ -92,4 +95,18 @@ export async function POST(request: Request) {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "Chat request failed";
+}
+
+function parseAgentOutput(
+  output: string,
+): { error?: string; success?: boolean; text?: string } | null {
+  if (!output) return null;
+  try {
+    const parsed = JSON.parse(output) as unknown;
+    return parsed && typeof parsed === "object"
+      ? parsed as { error?: string; success?: boolean; text?: string }
+      : null;
+  } catch {
+    return null;
+  }
 }

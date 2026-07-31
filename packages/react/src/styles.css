@@ -174,7 +174,7 @@
 .bui-agent-cursor {
   --bui-agent-cursor-x: 50%;
   --bui-agent-cursor-y: 50%;
-  --bui-agent-cursor-size: 24px;
+  --bui-agent-cursor-size: 32px;
   --bui-agent-cursor-background: #2f6bff;
   --bui-agent-cursor-fill: #050505;
   --bui-agent-cursor-outline: #fff;
@@ -195,7 +195,7 @@
 .bui-agent-cursor > svg { position: relative; z-index: 2; display: block; width: var(--bui-agent-cursor-size); height: var(--bui-agent-cursor-size); overflow: visible; filter: drop-shadow(0 calc(var(--bui-agent-cursor-size) * .05) calc(var(--bui-agent-cursor-size) * .04) rgba(0, 0, 0, .2)); transform-origin: 12% 10%; transition: transform .12s cubic-bezier(.2, .8, .2, 1); }
 .bui-agent-cursor--light { --bui-agent-cursor-fill: #fff; --bui-agent-cursor-outline: #050505; }
 .bui-agent-cursor--dark { --bui-agent-cursor-fill: #050505; --bui-agent-cursor-outline: #fff; }
-.bui-agent-cursor-outline { fill: var(--bui-agent-cursor-outline); stroke: var(--bui-agent-cursor-outline); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.bui-agent-cursor-outline { fill: var(--bui-agent-cursor-outline); stroke: var(--bui-agent-cursor-outline); stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; }
 .bui-agent-cursor-fill { fill: var(--bui-agent-cursor-fill); }
 .bui-agent-cursor--pressed > svg { transform: scale(.82); }
 .bui-agent-cursor--typing > svg { animation: bui-cursor-typing .7s ease-in-out infinite alternate; }

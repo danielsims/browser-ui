@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentBrowserViewport } from "../src/agent-browser-viewport";
@@ -76,6 +76,7 @@ describe("AgentBrowserViewport", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -143,25 +144,92 @@ describe("AgentBrowserViewport", () => {
     expect(screen.getByRole("application").getAttribute("aria-disabled")).toBe("true");
   });
 
-  it("requests control on first interaction without forwarding the click", () => {
+  it("requests control from a view-only viewport and replays the first click", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 400, height: 400, left: 0, right: 640, top: 0, width: 640,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
     const onInteractionIntent = vi.fn();
-    const viewer = { id: "viewer", displayName: "Viewer", kind: "user" as const };
-    render(<AgentBrowserViewport
-      access={{
-        owner: viewer,
-        viewer,
-        visibility: "explicit",
-        capabilities: ["observe", "control"],
-      }}
+    const view = render(<AgentBrowserViewport
+      onInteractionIntent={onInteractionIntent}
+      streamUrl="ws://127.0.0.1:9223"
+    />);
+    const viewport = screen.getByRole("application");
+    const socket = MockWebSocket.instances[0];
+    socket.emit("message", frameMessage());
+    await waitFor(() => expect(viewport.querySelector("canvas")?.width).toBe(1280));
+
+    expect(viewport.getAttribute("data-input-intent")).toBe("true");
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      clientX: 320,
+      clientY: 200,
+      pointerId: 1,
+    });
+    expect(onInteractionIntent).toHaveBeenCalledTimes(1);
+    expect(socket.sent).toHaveLength(0);
+
+    view.rerender(<AgentBrowserViewport
       interactive
       onInteractionIntent={onInteractionIntent}
       streamUrl="ws://127.0.0.1:9223"
     />);
 
+    await waitFor(() => {
+      const input = socket.sent
+        .map((value) => JSON.parse(value))
+        .filter((value) => value.type === "input_mouse");
+      expect(input.map((value) => value.eventType)).toEqual([
+        "mouseMoved",
+        "mousePressed",
+        "mouseReleased",
+      ]);
+      expect(input[0]).toMatchObject({ x: 640, y: 400, button: "left" });
+    });
+  });
+
+  it("requests control from a view-only viewport and replays the first scroll", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 400, height: 400, left: 0, right: 640, top: 0, width: 640,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    const onInteractionIntent = vi.fn();
+    const view = render(<AgentBrowserViewport
+      onInteractionIntent={onInteractionIntent}
+      streamUrl="ws://127.0.0.1:9223"
+    />);
     const viewport = screen.getByRole("application");
-    expect(viewport.getAttribute("data-input-intent")).toBe("true");
-    fireEvent.pointerDown(viewport);
+    vi.spyOn(document, "elementsFromPoint").mockReturnValue([viewport]);
+    const socket = MockWebSocket.instances[0];
+    socket.emit("message", frameMessage());
+    await waitFor(() => expect(viewport.querySelector("canvas")?.width).toBe(1280));
+
+    fireEvent.wheel(viewport, {
+      clientX: 320,
+      clientY: 200,
+      deltaX: 10,
+      deltaY: 40,
+    });
     expect(onInteractionIntent).toHaveBeenCalledTimes(1);
+    expect(socket.sent).toHaveLength(0);
+
+    view.rerender(<AgentBrowserViewport
+      interactive
+      onInteractionIntent={onInteractionIntent}
+      streamUrl="ws://127.0.0.1:9223"
+    />);
+
+    await waitFor(() => {
+      const wheel = socket.sent
+        .map((value) => JSON.parse(value))
+        .find((value) => value.eventType === "mouseWheel");
+      expect(wheel).toMatchObject({
+        x: 640,
+        y: 400,
+        deltaX: 20,
+        deltaY: 80,
+      });
+    });
   });
 
   it("forwards clicks directly to the remote viewport", async () => {
@@ -205,6 +273,40 @@ describe("AgentBrowserViewport", () => {
     expect(wheel).toMatchObject({ x: 640, y: 400, deltaX: 20, deltaY: 80 });
   });
 
+  it("coalesces rapid wheel updates instead of building an input backlog", async () => {
+    let flushWheel: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      flushWheel = callback;
+      return 1;
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 400, height: 400, left: 0, right: 640, top: 0, width: 640,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    render(<AgentBrowserViewport interactive streamUrl="ws://127.0.0.1:9223" />);
+    const viewport = screen.getByRole("application");
+    vi.spyOn(document, "elementsFromPoint").mockReturnValue([viewport]);
+    const socket = MockWebSocket.instances[0];
+    socket.emit("message", frameMessage());
+    await waitFor(() => expect(viewport.querySelector("canvas")?.width).toBe(1280));
+
+    fireEvent.wheel(viewport, { clientX: 320, clientY: 200, deltaY: 10 });
+    fireEvent.wheel(viewport, { clientX: 320, clientY: 200, deltaY: 20 });
+    fireEvent.wheel(viewport, { clientX: 320, clientY: 200, deltaY: 30 });
+
+    const beforeFlush = socket.sent
+      .map((value) => JSON.parse(value))
+      .filter((value) => value.eventType === "mouseWheel");
+    expect(beforeFlush).toHaveLength(1);
+    flushWheel?.(performance.now());
+
+    const afterFlush = socket.sent
+      .map((value) => JSON.parse(value))
+      .filter((value) => value.eventType === "mouseWheel");
+    expect(afterFlush).toHaveLength(2);
+    expect(afterFlush[1]).toMatchObject({ deltaY: 100 });
+  });
+
   it("keeps drawing when a newer frame arrives during JPEG decoding", async () => {
     const drawImage = vi.fn();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
@@ -246,6 +348,221 @@ describe("AgentBrowserViewport", () => {
     expect(takeover.tagName).toBe("DIV");
     fireEvent.click(takeover);
     expect(onTakeControl).toHaveBeenCalledTimes(1);
+  });
+
+  it("turns structured browser commands into live operating labels", async () => {
+    const onActivityChange = vi.fn();
+    render(<Browser
+      onActivityChange={onActivityChange}
+      streamUrl="ws://127.0.0.1:9223"
+    />);
+    const socket = MockWebSocket.instances[0];
+    socket.emit("message", new MessageEvent("message", {
+      data: JSON.stringify({
+        type: "status",
+        connected: true,
+        screencasting: true,
+        viewportWidth: 1280,
+        viewportHeight: 800,
+      }),
+    }));
+    socket.emit("message", new MessageEvent("message", {
+      data: JSON.stringify({
+        type: "command",
+        action: "open",
+        id: "open-one",
+        params: { url: "https://example.com/private?token=secret" },
+        timestamp: Date.now(),
+      }),
+    }));
+
+    await waitFor(() => expect(screen.getByText("Opening example.com")).not.toBeNull());
+    expect(onActivityChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: "open-one",
+      label: "Opening example.com",
+    }));
+    expect(document.body.textContent).not.toContain("token=secret");
+
+    socket.emit("message", new MessageEvent("message", {
+      data: JSON.stringify({
+        type: "result",
+        id: "open-one",
+        action: "open",
+        success: true,
+        data: null,
+        duration_ms: 25,
+        timestamp: Date.now(),
+      }),
+    }));
+    await waitFor(() => expect(screen.queryByText("Opening example.com")).toBeNull());
+    expect(onActivityChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it("keeps the latest activity visible between commands during an agent run", async () => {
+    const view = render(<Browser
+      operating
+      operatingLabel="Agent is browsing"
+      streamUrl="ws://127.0.0.1:9223"
+    />);
+    const socket = MockWebSocket.instances[0];
+    socket.emit("message", new MessageEvent("message", {
+      data: JSON.stringify({
+        type: "status",
+        connected: true,
+        screencasting: true,
+        viewportWidth: 1280,
+        viewportHeight: 800,
+      }),
+    }));
+    socket.emit("message", new MessageEvent("message", {
+      data: JSON.stringify({
+        type: "command",
+        action: "open",
+        id: "open-one",
+        params: { url: "https://example.com" },
+        timestamp: Date.now(),
+      }),
+    }));
+
+    await waitFor(() => expect(screen.getByText("Opening example.com")).not.toBeNull());
+    socket.emit("message", new MessageEvent("message", {
+      data: JSON.stringify({
+        type: "result",
+        id: "open-one",
+        action: "open",
+        success: true,
+        data: null,
+        duration_ms: 25,
+        timestamp: Date.now(),
+      }),
+    }));
+    await waitFor(() => expect(screen.getByText("Opening example.com")).not.toBeNull());
+    expect(screen.queryByText("Agent is browsing")).toBeNull();
+
+    socket.emit("message", new MessageEvent("message", {
+      data: JSON.stringify({
+        v: 1,
+        type: "activity",
+        eventSequence: 1,
+        action: "click",
+        id: "click-one",
+        label: "Clicking an element",
+        phase: "started",
+        timestamp: Date.now(),
+        agentCursor: { x: 0.25, y: 0.75, visible: true },
+      }),
+    }));
+    await waitFor(() => expect(screen.getByText("Clicking an element")).not.toBeNull());
+    expect(screen.queryByText("Opening example.com")).toBeNull();
+    const cursor = view.container.querySelector<HTMLElement>(".bui-agent-cursor");
+    expect(cursor?.style.getPropertyValue("--bui-agent-cursor-x")).toBe("25%");
+    expect(cursor?.style.getPropertyValue("--bui-agent-cursor-y")).toBe("75%");
+    socket.emit("message", new MessageEvent("message", {
+      data: JSON.stringify({
+        v: 1,
+        type: "activity",
+        eventSequence: 2,
+        id: "click-one",
+        action: "click",
+        label: "Clicking an element",
+        phase: "completed",
+        success: true,
+        durationMs: 25,
+        timestamp: Date.now(),
+      }),
+    }));
+    await waitFor(() => expect(screen.getByText("Clicking an element")).not.toBeNull());
+    expect(view.container.querySelector(".bui-agent-cursor--visible")).not.toBeNull();
+
+    view.rerender(<Browser
+      operating={false}
+      operatingLabel="Agent is browsing"
+      streamUrl="ws://127.0.0.1:9223"
+    />);
+    await waitFor(() => expect(screen.queryByText("Clicking an element")).toBeNull());
+    expect(view.container.querySelector(".bui-agent-cursor--visible")).not.toBeNull();
+  });
+
+  it("keeps the live cursor mounted between actions and fades it after inactivity", async () => {
+    const view = render(<Browser
+      operating
+      streamUrl="ws://127.0.0.1:9223"
+    />);
+    const socket = MockWebSocket.instances[0];
+    let hideCursor: (() => void) | undefined;
+    const nativeSetTimeout = globalThis.setTimeout;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+      if (timeout === 4_000 && typeof handler === "function") {
+        hideCursor = () => handler(...args);
+        return 1;
+      }
+      return nativeSetTimeout(handler, timeout, ...args);
+    }) as typeof setTimeout);
+
+    await act(async () => {
+      socket.emit("message", new MessageEvent("message", {
+        data: JSON.stringify({
+          type: "status",
+          connected: true,
+          screencasting: true,
+          viewportWidth: 1280,
+          viewportHeight: 800,
+        }),
+      }));
+      socket.emit("message", new MessageEvent("message", {
+        data: JSON.stringify({
+          v: 1,
+          type: "activity",
+          eventSequence: 1,
+          action: "click",
+          id: "click-one",
+          label: "Clicking the first element",
+          phase: "started",
+          timestamp: Date.now(),
+          agentCursor: { x: 0.2, y: 0.3, visible: true },
+        }),
+      }));
+      await Promise.resolve();
+    });
+    const cursor = view.container.querySelector<HTMLElement>(".bui-agent-cursor");
+    expect(cursor?.classList.contains("bui-agent-cursor--visible")).toBe(true);
+
+    act(() => socket.emit("message", new MessageEvent("message", {
+      data: JSON.stringify({
+        v: 1,
+        type: "activity",
+        eventSequence: 2,
+        action: "open",
+        id: "open-one",
+        label: "Opening another page",
+        phase: "started",
+        timestamp: Date.now(),
+      }),
+    })));
+    expect(view.container.querySelector(".bui-agent-cursor")).toBe(cursor);
+    expect(cursor?.style.getPropertyValue("--bui-agent-cursor-x")).toBe("20%");
+
+    act(() => hideCursor?.());
+    expect(view.container.querySelector(".bui-agent-cursor")).toBe(cursor);
+    expect(cursor?.classList.contains("bui-agent-cursor--visible")).toBe(false);
+
+    act(() => socket.emit("message", new MessageEvent("message", {
+      data: JSON.stringify({
+        v: 1,
+        type: "activity",
+        eventSequence: 3,
+        action: "click",
+        id: "click-two",
+        label: "Clicking the next element",
+        phase: "started",
+        timestamp: Date.now(),
+        agentCursor: { x: 0.8, y: 0.7, visible: true },
+      }),
+    })));
+    expect(view.container.querySelector(".bui-agent-cursor")).toBe(cursor);
+    expect(cursor?.classList.contains("bui-agent-cursor--visible")).toBe(true);
+    expect(cursor?.style.getPropertyValue("--bui-agent-cursor-x")).toBe("80%");
+    expect(cursor?.style.getPropertyValue("--bui-agent-cursor-y")).toBe("70%");
   });
 
   it("starts recordings at a settled frame and follows cursor movement", async () => {

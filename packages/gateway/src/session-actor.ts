@@ -6,6 +6,7 @@ import {
   parseBrowserSourceMessage,
   parseBrowserViewerMessage,
   type BrowserSessionDescriptor,
+  type BrowserSessionActivityMessage,
   type BrowserSessionCapability,
   type BrowserSessionFrameMessage,
   type BrowserSessionFrameEncoding,
@@ -76,6 +77,7 @@ export class BrowserSessionActor {
   #frameSequence = 0;
   #viewportRevision = 0;
   #latestFrame: EncodedFrame | null = null;
+  #activity: BrowserSessionActivityMessage | null = null;
   #controlLease: ActiveControlLease | null = null;
   readonly #controlLeaseLifetimeMs: number;
   readonly #onMetric?: BrowserSessionActorOptions["onMetric"];
@@ -103,6 +105,7 @@ export class BrowserSessionActor {
     this.#sourceEpoch = randomUUID();
     this.#frameSequence = 0;
     this.#latestFrame = null;
+    this.#activity = null;
     this.#updateStatus("waiting");
 
     socket.on("message", (data, isBinary) => {
@@ -113,6 +116,7 @@ export class BrowserSessionActor {
     socket.on("close", () => {
       if (socket !== this.#source) return;
       this.#source = null;
+      this.#activity = null;
       this.#releaseControlInternal();
       if (this.#descriptor.status !== "ended") this.#updateStatus("offline");
     });
@@ -293,6 +297,26 @@ export class BrowserSessionActor {
           timestamp: Date.now(),
         });
         break;
+      case "source.activity": {
+        this.#eventSequence += 1;
+        const activity: BrowserSessionActivityMessage = {
+          v: BROWSER_SESSION_VERSION,
+          type: "activity",
+          eventSequence: this.#eventSequence,
+          id: message.id,
+          action: message.action,
+          label: message.label,
+          phase: message.phase,
+          timestamp: message.timestamp,
+          ...(message.agentCursor === undefined ? {} : { agentCursor: message.agentCursor }),
+          ...(message.success === undefined ? {} : { success: message.success }),
+          ...(message.durationMs === undefined ? {} : { durationMs: message.durationMs }),
+        };
+        if (activity.phase === "started") this.#activity = activity;
+        else if (this.#activity?.id === activity.id) this.#activity = null;
+        this.#broadcastReliable(activity);
+        break;
+      }
       case "heartbeat":
         this.#send(this.#source, message);
         break;
@@ -433,6 +457,7 @@ export class BrowserSessionActor {
       viewportWidth: this.#descriptor.viewport.width,
       viewportHeight: this.#descriptor.viewport.height,
     } satisfies BrowserSessionStatusMessage);
+    if (this.#activity) this.#send(viewer.socket, this.#activity);
     if (this.#latestFrame) this.#queueLatestFrame(viewer, this.#latestFrame);
   }
 
