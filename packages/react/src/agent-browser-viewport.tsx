@@ -112,8 +112,6 @@ export function AgentBrowserViewport({
   const socketRef = useRef<WebSocket | null>(null);
   const moveFrameRef = useRef<number | null>(null);
   const pendingMoveRef = useRef<Record<string, unknown> | null>(null);
-  const wheelFrameRef = useRef<number | null>(null);
-  const pendingWheelRef = useRef<{ deltaX: number; deltaY: number; modifiers: number; x: number; y: number } | null>(null);
   const activePointerRef = useRef<ActivePointer | null>(null);
   const touchGestureRef = useRef<TouchGesture | null>(null);
   const interactiveRef = useRef(inputEnabled);
@@ -151,24 +149,8 @@ export function AgentBrowserViewport({
     return released;
   }, [send]);
 
-  const queueWheel = useCallback((wheel: { deltaX: number; deltaY: number; modifiers: number; x: number; y: number }) => {
-    const pending = pendingWheelRef.current;
-    pendingWheelRef.current = {
-      ...wheel,
-      deltaX: (pending?.deltaX ?? 0) + wheel.deltaX,
-      deltaY: (pending?.deltaY ?? 0) + wheel.deltaY,
-    };
-    if (wheelFrameRef.current) return;
-    wheelFrameRef.current = requestAnimationFrame(() => {
-      wheelFrameRef.current = null;
-      const nextWheel = pendingWheelRef.current;
-      pendingWheelRef.current = null;
-      if (nextWheel) send({ type: "input_mouse", eventType: "mouseWheel", ...nextWheel });
-    });
-  }, [send]);
-
   useEffect(() => {
-    let closed = false; let decoding = false; let frameVersion = 0;
+    let closed = false; let decoding = false;
     let pendingFrame: PendingViewportFrame | null = null;
     let sourceEpoch: string | null = null;
     let lastRemoteFrameSequence = -1;
@@ -177,8 +159,7 @@ export function AgentBrowserViewport({
       decoding = true;
       try {
         while (!closed && pendingFrame) {
-          const message = pendingFrame; const version = frameVersion; pendingFrame = null;
-          metadataRef.current = message.metadata;
+          const message = pendingFrame; pendingFrame = null;
           let bitmap: ImageBitmap | undefined;
           try {
             const bytes = typeof message.data === "string"
@@ -187,15 +168,15 @@ export function AgentBrowserViewport({
             const jpeg = new Uint8Array(bytes.byteLength);
             jpeg.set(bytes);
             bitmap = await createImageBitmap(new Blob([jpeg.buffer], { type: "image/jpeg" }));
-            if (version === frameVersion) {
-              const canvas = canvasRef.current;
-              if (canvas) {
-                if (canvas.width !== bitmap.width) canvas.width = bitmap.width;
-                if (canvas.height !== bitmap.height) canvas.height = bitmap.height;
-                canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
-                reconnectAttempt = 0;
-                statusChangeRef.current?.("connected");
-              }
+            if (closed) break;
+            const canvas = canvasRef.current;
+            if (canvas) {
+              if (canvas.width !== bitmap.width) canvas.width = bitmap.width;
+              if (canvas.height !== bitmap.height) canvas.height = bitmap.height;
+              canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+              metadataRef.current = message.metadata;
+              reconnectAttempt = 0;
+              statusChangeRef.current?.("connected");
             }
           } catch {
             // Keep the last valid frame. A malformed frame must not kill the stream.
@@ -284,7 +265,6 @@ export function AgentBrowserViewport({
             lastRemoteFrameSequence = -1;
           }
           lastRemoteFrameSequence = decoded.header.frameSequence;
-          frameVersion += 1;
           pendingFrame = {
             data: new Uint8Array(decoded.jpeg),
             metadata: decoded.header.metadata,
@@ -307,11 +287,11 @@ export function AgentBrowserViewport({
         }
         if (message.type === "error") { statusChangeRef.current?.("error"); return; }
         if (message.type !== "frame") return;
-        frameVersion += 1; pendingFrame = message; void drawLatestFrame();
+        pendingFrame = message; void drawLatestFrame();
       });
     };
     void connect();
-    return () => { closed = true; pendingFrame = null; touchGestureRef.current = null; releaseActivePointer(); if (moveFrameRef.current) cancelAnimationFrame(moveFrameRef.current); if (wheelFrameRef.current) cancelAnimationFrame(wheelFrameRef.current); if (reconnectTimer) clearTimeout(reconnectTimer); stopHeartbeat(); socketRef.current?.close(); socketRef.current = null; };
+    return () => { closed = true; pendingFrame = null; touchGestureRef.current = null; releaseActivePointer(); if (moveFrameRef.current) cancelAnimationFrame(moveFrameRef.current); if (reconnectTimer) clearTimeout(reconnectTimer); stopHeartbeat(); socketRef.current?.close(); socketRef.current = null; };
   }, [createWebSocket, protocols, releaseActivePointer, resolveConnection, streamUrl]);
 
   const reportsViewportResize = onViewportResize !== undefined;
@@ -422,12 +402,21 @@ export function AgentBrowserViewport({
       const position = point(event.clientX, event.clientY);
       if (!position) return;
       event.preventDefault();
-      event.stopImmediatePropagation();
-      const deltas = wheelDeltas(event, element.clientHeight);
-      queueWheel({
+      const bounds = element.getBoundingClientRect();
+      const deltas = wheelDeltas(event, bounds.height);
+      const metadata = metadataRef.current;
+      if (!metadata) return;
+      const scale = Math.min(
+        bounds.width / metadata.deviceWidth,
+        bounds.height / metadata.deviceHeight,
+      );
+      if (!Number.isFinite(scale) || scale <= 0) return;
+      send({
+        type: "input_mouse",
+        eventType: "mouseWheel",
         ...position,
-        deltaX: deltas.deltaX,
-        deltaY: deltas.deltaY,
+        deltaX: deltas.deltaX / scale,
+        deltaY: deltas.deltaY / scale,
         modifiers: modifiers(event),
       });
     };
@@ -442,11 +431,8 @@ export function AgentBrowserViewport({
     return () => {
       window.removeEventListener("wheel", handleWheel, { capture: true });
       window.removeEventListener("mousewheel", handleWheel, { capture: true });
-      if (wheelFrameRef.current) cancelAnimationFrame(wheelFrameRef.current);
-      wheelFrameRef.current = null;
-      pendingWheelRef.current = null;
     };
-  }, [inputEnabled, point, queueWheel]);
+  }, [inputEnabled, point, send]);
 
   const mouse = (eventType: "mouseMoved" | "mousePressed", event: ReactPointerEvent<HTMLDivElement>) => {
     const position = point(event.clientX, event.clientY); if (!position) return;
@@ -494,7 +480,9 @@ export function AgentBrowserViewport({
       event.clientY - gesture.startClientY,
     ) >= 6) gesture.moved = true;
     if (gesture.moved) {
-      queueWheel({
+      send({
+        type: "input_mouse",
+        eventType: "mouseWheel",
         deltaX: gesture.lastX - position.x,
         deltaY: gesture.lastY - position.y,
         modifiers: gesture.modifiers,

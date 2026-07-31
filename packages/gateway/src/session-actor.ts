@@ -53,6 +53,7 @@ export interface BrowserSessionActorOptions {
   descriptor: BrowserSessionDescriptor;
   producer: BrowserGatewayPrincipal;
   maximumBufferedBytes: number;
+  maximumFrameBufferedBytes: number;
   maximumEncodedFrameLength: number;
   onMetric?: (metric: BrowserSessionActorMetric) => void;
   controlLeaseLifetimeMs?: number;
@@ -66,6 +67,7 @@ export class BrowserSessionActor {
   readonly producer: BrowserGatewayPrincipal;
   readonly #viewers = new Map<WebSocket, ViewerState>();
   readonly #maximumBufferedBytes: number;
+  readonly #maximumFrameBufferedBytes: number;
   readonly #maximumEncodedFrameLength: number;
   #descriptor: BrowserSessionDescriptor;
   #source: WebSocket | null = null;
@@ -82,6 +84,7 @@ export class BrowserSessionActor {
     this.#descriptor = options.descriptor;
     this.producer = options.producer;
     this.#maximumBufferedBytes = options.maximumBufferedBytes;
+    this.#maximumFrameBufferedBytes = options.maximumFrameBufferedBytes;
     this.#maximumEncodedFrameLength = options.maximumEncodedFrameLength;
     this.#onMetric = options.onMetric;
     this.#controlLeaseLifetimeMs = options.controlLeaseLifetimeMs ?? 30_000;
@@ -470,12 +473,12 @@ export class BrowserSessionActor {
       !viewer.pendingFrame ||
       viewer.socket.readyState !== WebSocket.OPEN
     ) return;
-    if (viewer.socket.bufferedAmount > this.#maximumBufferedBytes) {
+    if (viewer.socket.bufferedAmount > this.#maximumFrameBufferedBytes) {
       if (!viewer.retryTimer) {
         viewer.retryTimer = setTimeout(() => {
           viewer.retryTimer = null;
           this.#flushFrame(viewer);
-        }, 25);
+        }, 8);
       }
       return;
     }

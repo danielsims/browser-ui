@@ -30,7 +30,10 @@ export interface BrowserSessionGatewayOptions {
   maximumRequestBytes?: number;
   maximumWebSocketPayloadBytes?: number;
   maximumEncodedFrameLength?: number;
+  /** Backpressure threshold used to disconnect a viewer before reliable messages grow without bound. */
   maximumBufferedBytes?: number;
+  /** Bytes of queued frame data tolerated before retaining only the latest frame. Defaults to zero. */
+  maximumFrameBufferedBytes?: number;
   controlLeaseLifetimeMs?: number;
 }
 
@@ -61,6 +64,7 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
   const maximumWebSocketPayloadBytes = options.maximumWebSocketPayloadBytes ?? 32 * 1024 * 1024;
   const maximumEncodedFrameLength = options.maximumEncodedFrameLength ?? 24 * 1024 * 1024;
   const maximumBufferedBytes = options.maximumBufferedBytes ?? 2 * 1024 * 1024;
+  const maximumFrameBufferedBytes = options.maximumFrameBufferedBytes ?? 0;
   const allowedRequestOrigins = new Set(
     options.allowedRequestOrigins?.map(canonicalHttpOrigin) ?? [],
   );
@@ -122,6 +126,7 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
         descriptor,
         producer: principal,
         maximumBufferedBytes,
+        maximumFrameBufferedBytes,
         maximumEncodedFrameLength,
         controlLeaseLifetimeMs: options.controlLeaseLifetimeMs,
         onMetric(metric) {

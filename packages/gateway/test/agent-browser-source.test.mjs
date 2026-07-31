@@ -25,7 +25,9 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
   const navigation = new Promise((resolve) => {
     resolveNavigation = resolve;
   });
+  let localSocket;
   local.on("connection", (socket) => {
+    localSocket = socket;
     socket.on("message", (data) => resolveLocalInput(JSON.parse(data.toString())));
     socket.send(JSON.stringify({
       type: "status",
@@ -116,6 +118,43 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
   );
   assert.equal(source.getMetrics().framesPublished, 1);
   assert.equal(gateway.getMetrics().sourceFramesReceived, 1);
+
+  const latestBurstFrame = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Timed out waiting for latest burst frame")), 3_000);
+    const listener = (data, isBinary) => {
+      if (!isBinary) return;
+      const next = decodeBrowserSessionBinaryFrame(data);
+      if (next?.jpeg[2] !== 11) return;
+      clearTimeout(timeout);
+      viewer.off("message", listener);
+      resolve(next);
+    };
+    viewer.on("message", listener);
+  });
+  viewer._socket.pause();
+  const frameBody = Buffer.alloc(512 * 1024, 1);
+  for (let index = 0; index < 12; index += 1) {
+    frameBody[0] = index;
+    localSocket.send(JSON.stringify({
+      type: "frame",
+      data: Buffer.concat([Buffer.from([0xff, 0xd8]), frameBody, Buffer.from([0xff, 0xd9])]).toString("base64"),
+      metadata: {
+        deviceWidth: 1280,
+        deviceHeight: 800,
+        pageScaleFactor: 1,
+        offsetTop: 0,
+        scrollOffsetX: 0,
+        scrollOffsetY: 0,
+      },
+    }));
+  }
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  viewer._socket.resume();
+  await latestBurstFrame;
+  assert.ok(
+    source.getMetrics().framesDropped > 0 || gateway.getMetrics().viewerFramesDropped > 0,
+    "expected stale burst frames to be dropped",
+  );
 
   const control = await fetch(
     `${origin}/v1/sessions/${source.session.sessionId}/control`,

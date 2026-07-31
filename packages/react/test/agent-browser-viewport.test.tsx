@@ -15,6 +15,7 @@ class MockWebSocket {
   static instances: MockWebSocket[] = [];
 
   readonly listeners = new Map<string, Set<Listener>>();
+  readonly sent: string[] = [];
   readyState = MockWebSocket.OPEN;
 
   constructor() {
@@ -27,7 +28,7 @@ class MockWebSocket {
     this.listeners.set(type, listeners);
   }
 
-  send() {}
+  send(value: string) { this.sent.push(value); }
 
   close() {
     this.readyState = 3;
@@ -54,7 +55,18 @@ describe("AgentBrowserViewport", () => {
       return 1;
     });
     vi.stubGlobal("cancelAnimationFrame", () => undefined);
+    vi.stubGlobal("createImageBitmap", async () => ({ width: 1280, height: 800, close() {} }));
+    vi.stubGlobal("PointerEvent", MouseEvent);
     vi.stubGlobal("ResizeObserver", MockResizeObserver);
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: () => [],
+    });
+    Object.defineProperties(HTMLElement.prototype, {
+      hasPointerCapture: { configurable: true, value: () => true },
+      releasePointerCapture: { configurable: true, value: () => undefined },
+      setPointerCapture: { configurable: true, value: () => undefined },
+    });
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -150,6 +162,80 @@ describe("AgentBrowserViewport", () => {
     expect(viewport.getAttribute("data-input-intent")).toBe("true");
     fireEvent.pointerDown(viewport);
     expect(onInteractionIntent).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards clicks directly to the remote viewport", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 400, height: 400, left: 0, right: 640, top: 0, width: 640,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    render(<AgentBrowserViewport interactive streamUrl="ws://127.0.0.1:9223" />);
+    const viewport = screen.getByRole("application");
+    const socket = MockWebSocket.instances[0];
+    socket.emit("message", frameMessage());
+    await waitFor(() => expect(viewport.querySelector("canvas")?.width).toBe(1280));
+
+    fireEvent.pointerDown(viewport, { button: 0, clientX: 320, clientY: 200, pointerId: 1 });
+    fireEvent.pointerUp(viewport, { button: 0, clientX: 320, clientY: 200, pointerId: 1 });
+
+    const input = socket.sent.map((value) => JSON.parse(value)).filter((value) => value.type === "input_mouse");
+    expect(input.map((value) => value.eventType)).toEqual(["mousePressed", "mouseReleased"]);
+    expect(input[0]).toMatchObject({ x: 640, y: 400, button: "left" });
+  });
+
+  it("sends wheel input immediately in remote viewport pixels", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 400, height: 400, left: 0, right: 640, top: 0, width: 640,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    render(<AgentBrowserViewport interactive streamUrl="ws://127.0.0.1:9223" />);
+    const viewport = screen.getByRole("application");
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 500 },
+      clientWidth: { configurable: true, value: 800 },
+    });
+    vi.spyOn(document, "elementsFromPoint").mockReturnValue([viewport]);
+    const socket = MockWebSocket.instances[0];
+    socket.emit("message", frameMessage());
+    await waitFor(() => expect(viewport.querySelector("canvas")?.width).toBe(1280));
+
+    fireEvent.wheel(viewport, { clientX: 320, clientY: 200, deltaX: 10, deltaY: 40 });
+
+    const wheel = socket.sent.map((value) => JSON.parse(value)).find((value) => value.eventType === "mouseWheel");
+    expect(wheel).toMatchObject({ x: 640, y: 400, deltaX: 20, deltaY: 80 });
+  });
+
+  it("keeps drawing when a newer frame arrives during JPEG decoding", async () => {
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+    const decodes: Array<(bitmap: { width: number; height: number; close(): void }) => void> = [];
+    vi.stubGlobal("createImageBitmap", () => new Promise((resolve) => decodes.push(resolve)));
+    render(<AgentBrowserViewport streamUrl="ws://127.0.0.1:9223" />);
+    const socket = MockWebSocket.instances[0];
+
+    socket.emit("message", frameMessage());
+    await waitFor(() => expect(decodes).toHaveLength(1));
+    socket.emit("message", frameMessage());
+    decodes[0]({ width: 1280, height: 800, close() {} });
+    await waitFor(() => expect(drawImage).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(decodes).toHaveLength(2));
+    decodes[1]({ width: 1280, height: 800, close() {} });
+    await waitFor(() => expect(drawImage).toHaveBeenCalledTimes(2));
+  });
+
+  it("does not draw a decoded frame after its connection is unmounted", async () => {
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+    let finishDecode: ((bitmap: { width: number; height: number; close(): void }) => void) | undefined;
+    vi.stubGlobal("createImageBitmap", () => new Promise((resolve) => { finishDecode = resolve; }));
+    const view = render(<AgentBrowserViewport streamUrl="ws://127.0.0.1:9223" />);
+    MockWebSocket.instances[0].emit("message", frameMessage());
+    await waitFor(() => expect(finishDecode).toBeTypeOf("function"));
+
+    view.unmount();
+    finishDecode?.({ width: 1280, height: 800, close() {} });
+    await Promise.resolve();
+    expect(drawImage).not.toHaveBeenCalled();
   });
 
   it("uses the operating surface itself as the takeover control", () => {
@@ -263,3 +349,20 @@ describe("AgentBrowserViewport", () => {
     expect(resolveConnection).toHaveBeenCalledTimes(1);
   });
 });
+
+function frameMessage() {
+  return new MessageEvent("message", {
+    data: JSON.stringify({
+      type: "frame",
+      data: "AA==",
+      metadata: {
+        deviceWidth: 1280,
+        deviceHeight: 800,
+        pageScaleFactor: 1,
+        offsetTop: 0,
+        scrollOffsetX: 0,
+        scrollOffsetY: 0,
+      },
+    }),
+  });
+}

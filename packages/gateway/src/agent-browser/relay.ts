@@ -54,7 +54,7 @@ export async function relayAgentBrowserSession(
   const streamUrl = validateLoopbackStreamUrl(options.streamUrl);
   const fetchImplementation = options.fetch ?? globalThis.fetch;
   if (!fetchImplementation) throw new Error("A fetch implementation is required.");
-  const maximumBufferedBytes = options.maximumBufferedBytes ?? 2 * 1024 * 1024;
+  const maximumBufferedBytes = options.maximumBufferedBytes ?? 0;
   const reconnectInitialDelayMs = options.reconnectInitialDelayMs ?? 250;
   const reconnectMaximumDelayMs = options.reconnectMaximumDelayMs ?? 5_000;
   const metrics: AgentBrowserSourceMetrics = {
@@ -137,7 +137,7 @@ export async function relayAgentBrowserSession(
         flushTimer = setTimeout(() => {
           flushTimer = null;
           flushLatestFrame();
-        }, 10);
+        }, 8);
       }
       return;
     }
