@@ -3,7 +3,7 @@
 Run a real `agent-browser` session in an isolated Cloudflare Sandbox, stream it
 through Browser UI, and use Workers AI for the browser agent.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fdanielsims%2Fbrowser-ui%2Ftree%2Ffeat%2Fexample-cloudflare-sandbox%2Fexamples%2Fcloudflare-sandbox)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fdanielsims%2Fbrowser-ui%2Ftree%2Fcloudflare-sandbox-preview%2Fexamples%2Fcloudflare-sandbox)
 
 The template provisions:
 

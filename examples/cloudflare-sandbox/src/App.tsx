@@ -24,7 +24,7 @@ interface DemoSession {
 }
 
 const deployUrl =
-  "https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fdanielsims%2Fbrowser-ui%2Ftree%2Ffeat%2Fexample-cloudflare-sandbox%2Fexamples%2Fcloudflare-sandbox";
+  "https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fdanielsims%2Fbrowser-ui%2Ftree%2Fcloudflare-sandbox-preview%2Fexamples%2Fcloudflare-sandbox";
 const deployFirstPreview =
   new URLSearchParams(window.location.search).get("preview") === "deploy-first";
 
