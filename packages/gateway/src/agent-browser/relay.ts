@@ -191,7 +191,12 @@ export async function relayAgentBrowserSession(
   const queueFrame = (payload: Uint8Array, capturedAt: number) => {
     if (pendingFrame) metrics.framesDropped += 1;
     pendingFrame = { capturedAt, payload };
-    flushLatestFrame();
+    if (!flushTimer) {
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        flushLatestFrame();
+      }, 0);
+    }
   };
 
   const sendActivityStarted = (
