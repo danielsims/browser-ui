@@ -245,7 +245,7 @@ export default function Page() {
   return (
     <div className="page">
       <header className="site-header">
-        <a className="brand" href="https://browser.danielsi.ms">
+        <a className="brand" href="https://browser-ui.danielsi.ms">
           browser-ui <span>/ vercel-sandbox</span>
         </a>
         <div className="header-actions">
