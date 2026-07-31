@@ -46,6 +46,7 @@ export async function POST(request: Request) {
         detached: true,
         timeoutMs: 270_000,
         env: {
+          AGENT_BROWSER_IDLE_TIMEOUT_MS: String(10 * 60 * 1000),
           AI_GATEWAY_API_KEY: aiProxyToken(key),
           AI_GATEWAY_MODEL: process.env.AI_GATEWAY_MODEL?.trim() || DEFAULT_MODEL,
           AI_GATEWAY_URL: new URL(

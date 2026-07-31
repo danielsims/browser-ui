@@ -14,7 +14,9 @@ import WebSocket, { type RawData } from "ws";
 
 export interface AgentBrowserSourceOptions {
   gatewayOrigin: string;
-  streamUrl: string;
+  streamUrl?: string;
+  /** Resolves the current loopback stream URL before each connection attempt. */
+  resolveStreamUrl?: () => string | Promise<string>;
   title: string;
   viewport: { width: number; height: number };
   authorize?: BrowserSessionHttpAuthorization;
@@ -51,7 +53,12 @@ export async function relayAgentBrowserSession(
   options: AgentBrowserSourceOptions,
 ): Promise<AgentBrowserSourceHandle> {
   const gatewayOrigin = normalizeGatewayOrigin(options.gatewayOrigin);
-  const streamUrl = validateLoopbackStreamUrl(options.streamUrl);
+  const staticStreamUrl = options.streamUrl
+    ? validateLoopbackStreamUrl(options.streamUrl)
+    : null;
+  if (!staticStreamUrl && !options.resolveStreamUrl) {
+    throw new Error("An agent-browser stream URL or resolver is required.");
+  }
   const fetchImplementation = options.fetch ?? globalThis.fetch;
   if (!fetchImplementation) throw new Error("A fetch implementation is required.");
   const maximumBufferedBytes = options.maximumBufferedBytes ?? 0;
@@ -75,6 +82,7 @@ export async function relayAgentBrowserSession(
   let gatewayTimer: ReturnType<typeof setTimeout> | null = null;
   let localTimer: ReturnType<typeof setTimeout> | null = null;
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  let resolvingLocal = false;
   let sendingFrame = false;
   let pendingFrame: PendingFrame | null = null;
   let sourceFrameSequence = 0;
@@ -207,7 +215,27 @@ export async function relayAgentBrowserSession(
     }
   };
 
-  const connectLocal = () => {
+  const connectLocal = async () => {
+    if (
+      closed ||
+      localSocket ||
+      resolvingLocal ||
+      gatewaySocket?.readyState !== WebSocket.OPEN
+    ) return;
+    resolvingLocal = true;
+    let streamUrl: string;
+    try {
+      const resolved = options.resolveStreamUrl
+        ? await options.resolveStreamUrl()
+        : staticStreamUrl;
+      if (!resolved) throw new Error("The agent-browser stream URL resolver returned no URL.");
+      streamUrl = validateLoopbackStreamUrl(resolved);
+    } catch {
+      resolvingLocal = false;
+      scheduleLocalReconnect();
+      return;
+    }
+    resolvingLocal = false;
     if (closed || localSocket || gatewaySocket?.readyState !== WebSocket.OPEN) return;
     const socket = new WebSocket(streamUrl, { perMessageDeflate: false });
     localSocket = socket;
@@ -244,7 +272,7 @@ export async function relayAgentBrowserSession(
       }
       gatewaySocket = socket;
       gatewayAttempt = 0;
-      connectLocal();
+      void connectLocal();
       flushLatestFrame();
       resolve();
     };

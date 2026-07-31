@@ -22,18 +22,22 @@ const sourceToken = required("BROWSER_UI_SOURCE_TOKEN");
 const viewerToken = required("BROWSER_UI_VIEWER_TOKEN");
 const metadataPath = "/vercel/sandbox/.browser-ui-session.json";
 const sessionName = "browser-ui-demo";
+const streamPort = 9223;
 let source;
 
 const command = async (...args) => {
   const result = await execFileAsync(agentBrowser, [
     "--session",
     sessionName,
-    "--idle-timeout",
-    "10m",
     "--json",
     ...args,
   ], {
     encoding: "utf8",
+    env: {
+      ...process.env,
+      AGENT_BROWSER_IDLE_TIMEOUT_MS: String(10 * 60 * 1000),
+      AGENT_BROWSER_STREAM_PORT: String(streamPort),
+    },
     maxBuffer: 16 * 1024 * 1024,
     timeout: 60_000,
   });
@@ -42,6 +46,17 @@ const command = async (...args) => {
     throw new Error(envelope.error || "agent-browser command failed");
   }
   return envelope?.data ?? envelope;
+};
+
+const resolveStreamUrl = async () => {
+  let stream = await command("stream", "status");
+  if (!stream.enabled || !stream.port) {
+    stream = await command("stream", "enable", "--port", String(streamPort));
+  }
+  if (!stream.enabled || !stream.port) {
+    throw new Error("agent-browser did not expose its stream");
+  }
+  return "ws://127.0.0.1:" + stream.port;
 };
 
 const gateway = createBrowserSessionGateway({
@@ -67,16 +82,14 @@ try {
     gateway.server.listen(8787, "0.0.0.0", resolve);
   });
 
-  await command("open", "https://example.com");
+  await command("open", "https://vercel.com");
   await command("set", "viewport", "1280", "800");
-  const stream = await command("stream", "status");
-  if (!stream.enabled || !stream.port) {
-    throw new Error("agent-browser did not expose its stream");
-  }
+  const streamUrl = await resolveStreamUrl();
 
   source = await relayAgentBrowserSession({
     gatewayOrigin: "http://127.0.0.1:8787",
-    streamUrl: "ws://127.0.0.1:" + stream.port,
+    streamUrl,
+    resolveStreamUrl,
     title: "Sandbox browser",
     viewport: { width: 1280, height: 800 },
     authorize: () => ({ authorization: "Bearer " + sourceToken }),
