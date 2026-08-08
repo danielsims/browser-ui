@@ -40,3 +40,13 @@ to install this implementation package directly.
 Within this repository, `pnpm --filter @browser-ui/shaders sync:flutter`
 regenerates Flutter runtime-effect sources from the canonical WebGL source.
 The shader test suite verifies that Flutter's current default has not drifted.
+
+For a local Swift package, pass its BrowserUI target source directory explicitly:
+
+```sh
+pnpm --filter @browser-ui/shaders sync:swift -- \
+  /path/to/BrowserUI/Sources/BrowserUI
+```
+
+This generates the Metal shader library and the Swift variant, direction, and
+speed configuration without coupling this package to a particular Xcode repo.

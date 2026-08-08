@@ -10,6 +10,8 @@ import {
   operatingShaderVariants,
 } from "../dist/index.js";
 import { flutterFragmentSource } from "../scripts/flutter-source.mjs";
+import { metalLibrarySource } from "../scripts/metal-source.mjs";
+import { swiftConfigurationSource } from "../scripts/swift-source.mjs";
 
 test("publishes every operating shader with tasteful defaults", () => {
   assert.deepEqual(operatingShaderVariants, ["subtle", "prism", "pulse", "tide"]);
@@ -73,4 +75,29 @@ test("keeps every Flutter shader generated from the canonical sources", async ()
     defaultSource,
     flutterFragmentSource(operatingShaderFragmentSources.subtle),
   );
+});
+
+test("generates native Swift and Metal sources from the shared definitions", () => {
+  const metal = metalLibrarySource(
+    operatingShaderFragmentSources,
+    operatingShaderVariants,
+  );
+  assert.match(metal, /browserOperatingShader\(/);
+  assert.match(metal, /browserOperatingPrismShader\(/);
+  assert.match(metal, /browserOperatingPulseShader\(/);
+  assert.match(metal, /browserOperatingTideShader\(/);
+  assert.doesNotMatch(metal, /\bvec[234]\b|gl_FragColor|gl_FragCoord|\bu_/);
+  assert.match(metal, /const float loopSpan = 1\.0/);
+  assert.match(metal, /0\.86 - 0\.14 \* cos/);
+
+  const swift = swiftConfigurationSource({
+    directions: operatingShaderDirections,
+    meta: operatingShaderMeta,
+    speeds: operatingShaderSpeeds,
+    variants: operatingShaderVariants,
+  });
+  assert.match(swift, /case \.tide: \(\.topLeftToBottomRight, \.fast\)/);
+  assert.match(swift, /case leftToRight = "left-to-right"/);
+  assert.match(swift, /case \.leftToRight: CGVector\(dx: 1, dy: 0\)/);
+  assert.match(swift, /case \.slow: 15/);
 });
