@@ -1,4 +1,6 @@
 node_modules
+.build
+.swiftpm
 .next
 .next-dev-*
 dist
