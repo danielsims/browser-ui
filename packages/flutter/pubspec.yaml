@@ -1,6 +1,6 @@
 name: browser_ui
 description: A native Flutter transport UI for agent-browser WebSocket streams.
-version: 0.2.0
+version: 0.3.0
 homepage: https://github.com/danielsims/browser-ui
 repository: https://github.com/danielsims/browser-ui
 issue_tracker: https://github.com/danielsims/browser-ui/issues
