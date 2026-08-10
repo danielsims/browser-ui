@@ -6,6 +6,8 @@ public struct BrowserOperatingOverlay: View {
     public let variant: BrowserOperatingShaderVariant
     public let direction: BrowserOperatingShaderDirection
     public let speed: BrowserOperatingShaderSpeed
+    public let takeControlLabel: String
+    private let onTakeControl: (() -> Void)?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var startedAt = Date()
 
@@ -13,12 +15,16 @@ public struct BrowserOperatingOverlay: View {
         label: String = "Agent is operating this browser",
         variant: BrowserOperatingShaderVariant = .subtle,
         direction: BrowserOperatingShaderDirection? = nil,
-        speed: BrowserOperatingShaderSpeed? = nil
+        speed: BrowserOperatingShaderSpeed? = nil,
+        takeControlLabel: String = "Take control",
+        onTakeControl: (() -> Void)? = nil
     ) {
         self.label = label
         self.variant = variant
         self.direction = direction ?? variant.defaults.direction
         self.speed = speed ?? variant.defaults.speed
+        self.takeControlLabel = takeControlLabel
+        self.onTakeControl = onTakeControl
     }
 
     public var body: some View {
@@ -37,14 +43,13 @@ public struct BrowserOperatingOverlay: View {
                         .fill(.white)
                         .colorEffect(operatingShader(size: proxy.size, time: elapsed))
                         .opacity(0.9)
+                        .allowsHitTesting(false)
                     operatingPill(time: elapsed)
                         .padding(.horizontal, 18)
-                        .padding(.bottom, 18)
+                        .padding(.bottom, 18 + proxy.safeAreaInsets.bottom)
                 }
             }
         }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 
     private func operatingShader(size: CGSize, time: TimeInterval) -> Shader {
@@ -67,17 +72,44 @@ public struct BrowserOperatingOverlay: View {
         }
     }
 
+    @ViewBuilder
     private func operatingPill(time: TimeInterval) -> some View {
+        if let onTakeControl {
+            Button(action: onTakeControl) {
+                operatingPillContent(time: time, showsTakeControl: true)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(takeControlLabel)
+            .accessibilityHint("Stops the agent and leaves the browser open for you")
+        } else {
+            operatingPillContent(time: time, showsTakeControl: false)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(label)
+        }
+    }
+
+    private func operatingPillContent(
+        time: TimeInterval,
+        showsTakeControl: Bool
+    ) -> some View {
         let shimmer = reduceMotion ? 0.5 : time.truncatingRemainder(dividingBy: 2) / 2
-        return Text(label)
+        return HStack(spacing: 9) {
+            Text(label)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .foregroundStyle(LinearGradient(
+                    colors: [.white.opacity(0.58), .white, .white.opacity(0.58)],
+                    startPoint: UnitPoint(x: -3 + shimmer * 6, y: 0.5),
+                    endPoint: UnitPoint(x: -1 + shimmer * 6, y: 0.5)))
+            if showsTakeControl {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .accessibilityHidden(true)
+            }
+        }
             .font(.system(size: 12, weight: .medium))
             .tracking(-0.144)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .foregroundStyle(LinearGradient(
-                colors: [.white.opacity(0.58), .white, .white.opacity(0.58)],
-                startPoint: UnitPoint(x: -3 + shimmer * 6, y: 0.5),
-                endPoint: UnitPoint(x: -1 + shimmer * 6, y: 0.5)))
             .padding(.horizontal, 13)
             .frame(height: 36)
             .background(.black.opacity(0.92), in: Capsule())

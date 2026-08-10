@@ -1,4 +1,5 @@
 import CoreGraphics
+import SwiftUI
 import XCTest
 @testable import BrowserUI
 
@@ -6,10 +7,14 @@ final class BrowserUITests: XCTestCase {
     private struct LifecycleFixture: Decodable {
         let version: Int
         let endReasons: [String]
+        let releaseOutcomes: [String]
         let viewportModes: [String]
         let validRequests: [JSONValue]
         let invalidRequests: [JSONValue]
         let receipt: JSONValue
+        let validReleaseRequests: [JSONValue]
+        let invalidReleaseRequests: [JSONValue]
+        let releaseReceipt: JSONValue
     }
 
     private struct DriverFixture: Decodable {
@@ -70,6 +75,12 @@ final class BrowserUITests: XCTestCase {
         XCTAssertEqual(rect, CGRect(x: 80, y: 0, width: 1440, height: 900))
     }
 
+    func testDisplayModesMatchReactPackage() {
+        XCTAssertEqual(
+            BrowserDisplayMode.allCases.map(\.rawValue),
+            ["inline", "picture-in-picture", "fullscreen"])
+    }
+
     func testDriverCapabilitiesMatchSharedFixture() throws {
         let fixtureURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -103,6 +114,32 @@ final class BrowserUITests: XCTestCase {
         XCTAssertEqual(cursor.y, 1)
     }
 
+    @MainActor
+    func testCursorRendersWithoutLabel() throws {
+        let renderer = ImageRenderer(content:
+            BrowserAgentCursor(state: BrowserAgentCursorState(x: 0.5, y: 0.5))
+                .frame(width: 160, height: 100))
+        renderer.scale = 1
+        let image = try XCTUnwrap(renderer.cgImage)
+        let width = image.width
+        let height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let context = try XCTUnwrap(CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let visiblePixelCount = stride(from: 3, to: pixels.count, by: 4)
+            .reduce(into: 0) { count, index in
+                if pixels[index] > 0 { count += 1 }
+            }
+        XCTAssertGreaterThan(visiblePixelCount, 100)
+    }
+
     func testActivityUsesBrowserUICodingKeys() throws {
         let activity = BrowserAgentActivity(
             id: "a1",
@@ -131,10 +168,13 @@ final class BrowserUITests: XCTestCase {
             label: "Testing",
             variant: .tide,
             direction: .rightToLeft,
-            speed: .slow)
+            speed: .slow,
+            takeControlLabel: "Stop agent",
+            onTakeControl: {})
         XCTAssertEqual(overlay.variant, .tide)
         XCTAssertEqual(overlay.direction, .rightToLeft)
         XCTAssertEqual(overlay.speed, .slow)
+        XCTAssertEqual(overlay.takeControlLabel, "Stop agent")
     }
 
     func testSessionLifecycleMatchesSharedFixture() throws {
@@ -150,6 +190,9 @@ final class BrowserUITests: XCTestCase {
         XCTAssertEqual(fixture.version, browserSessionLifecycleVersion)
         XCTAssertEqual(fixture.endReasons, BrowserSessionEndReason.allCases.map(\.rawValue))
         XCTAssertEqual(
+            fixture.releaseOutcomes,
+            BrowserSessionReleaseOutcome.allCases.map(\.rawValue))
+        XCTAssertEqual(
             fixture.viewportModes,
             BrowserViewportPresentationMode.allCases.map(\.rawValue))
 
@@ -162,6 +205,19 @@ final class BrowserUITests: XCTestCase {
             XCTAssertThrowsError(try decoder.decode(BrowserSessionEndRequest.self, from: request.data))
         }
         XCTAssertNoThrow(try decoder.decode(BrowserSessionEndReceipt.self, from: fixture.receipt.data))
+        for request in fixture.validReleaseRequests {
+            XCTAssertNoThrow(try decoder.decode(
+                BrowserSessionReleaseRequest.self,
+                from: request.data))
+        }
+        for request in fixture.invalidReleaseRequests {
+            XCTAssertThrowsError(try decoder.decode(
+                BrowserSessionReleaseRequest.self,
+                from: request.data))
+        }
+        XCTAssertNoThrow(try decoder.decode(
+            BrowserSessionReleaseReceipt.self,
+            from: fixture.releaseReceipt.data))
     }
 
     func testEndReceiptIsTerminalAndRoundTrips() throws {
@@ -172,6 +228,26 @@ final class BrowserUITests: XCTestCase {
         let data = try JSONEncoder().encode(receipt)
         let decoded = try JSONDecoder().decode(BrowserSessionEndReceipt.self, from: data)
         XCTAssertEqual(decoded.status, "ended")
+        XCTAssertEqual(decoded, receipt)
+    }
+
+    func testReleaseReceiptPreservesAResumableSessionAndRoundTrips() throws {
+        let request = try BrowserSessionReleaseRequest(
+            releaseId: "release_one",
+            sessionId: "session_one",
+            outcome: .completed,
+            label: "Configured the product",
+            url: "https://example.com/configure",
+            title: "Configure")
+        let receipt = BrowserSessionReleaseReceipt(
+            request: request,
+            releasedAt: Date(timeIntervalSince1970: 1_000))
+        let data = try JSONEncoder().encode(receipt)
+        let decoded = try JSONDecoder().decode(
+            BrowserSessionReleaseReceipt.self,
+            from: data)
+        XCTAssertEqual(decoded.status, "released")
+        XCTAssertEqual(decoded.outcome, .completed)
         XCTAssertEqual(decoded, receipt)
     }
 }

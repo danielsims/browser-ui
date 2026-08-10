@@ -24,6 +24,12 @@ void main() {
       fixture['viewportModes'],
       BrowserViewportPresentationMode.values.map((mode) => mode.name).toList(),
     );
+    expect(
+      fixture['releaseOutcomes'],
+      BrowserSessionReleaseOutcome.values
+          .map((outcome) => outcome.wireValue)
+          .toList(),
+    );
 
     for (final value in fixture['validRequests']! as List<Object?>) {
       expect(
@@ -44,6 +50,28 @@ void main() {
     expect(
       () => BrowserSessionEndReceipt.fromJson(
         (fixture['receipt']! as Map).cast<String, Object?>(),
+      ),
+      returnsNormally,
+    );
+    for (final value in fixture['validReleaseRequests']! as List<Object?>) {
+      expect(
+        () => BrowserSessionReleaseRequest.fromJson(
+          (value! as Map).cast<String, Object?>(),
+        ),
+        returnsNormally,
+      );
+    }
+    for (final value in fixture['invalidReleaseRequests']! as List<Object?>) {
+      expect(
+        () => BrowserSessionReleaseRequest.fromJson(
+          (value! as Map).cast<String, Object?>(),
+        ),
+        throwsFormatException,
+      );
+    }
+    expect(
+      () => BrowserSessionReleaseReceipt.fromJson(
+        (fixture['releaseReceipt']! as Map).cast<String, Object?>(),
       ),
       returnsNormally,
     );

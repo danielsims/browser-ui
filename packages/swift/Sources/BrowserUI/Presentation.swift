@@ -1,5 +1,15 @@
 import Foundation
 
+/// Where a browser viewer is presented in its host interface. This mirrors
+/// `BrowserDisplayMode` from `@browser-ui/react`; viewport sizing remains a
+/// separate concern because inline and picture-in-picture both use preview
+/// geometry while fullscreen uses takeover geometry.
+public enum BrowserDisplayMode: String, Codable, CaseIterable, Sendable {
+    case inline
+    case pictureInPicture = "picture-in-picture"
+    case fullscreen
+}
+
 /// Mirrors `BrowserAgentCursorState` from `@browser-ui/core` so activities can
 /// cross a WebSocket or recording boundary without platform-specific fields.
 public struct BrowserAgentCursorState: Codable, Equatable, Sendable {

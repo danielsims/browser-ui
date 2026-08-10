@@ -10,6 +10,8 @@ import {
   browserViewportPresentationModes,
   createHttpBrowserSessionResolver,
   createHttpBrowserSessionTerminator,
+  isBrowserSessionReleaseReceipt,
+  isBrowserSessionReleaseRequest,
   isBrowserSessionEndReceipt,
   isBrowserSessionEndRequest,
   isBrowserDriverDescriptor,
@@ -49,6 +51,17 @@ test("browser session lifecycle fixtures remain portable", () => {
     assert.equal(isBrowserSessionEndRequest(request), false);
   }
   assert.equal(isBrowserSessionEndReceipt(lifecycleFixture.receipt), true);
+  assert.deepEqual(lifecycleFixture.releaseOutcomes, ["completed", "waiting"]);
+  for (const request of lifecycleFixture.validReleaseRequests) {
+    assert.equal(isBrowserSessionReleaseRequest(request), true);
+  }
+  for (const request of lifecycleFixture.invalidReleaseRequests) {
+    assert.equal(isBrowserSessionReleaseRequest(request), false);
+  }
+  assert.equal(
+    isBrowserSessionReleaseReceipt(lifecycleFixture.releaseReceipt),
+    true,
+  );
 });
 
 test("terminates a session through an authenticated lifecycle request", async () => {

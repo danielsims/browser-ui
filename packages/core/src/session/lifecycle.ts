@@ -9,6 +9,28 @@ export const browserSessionEndReasons = [
 
 export type BrowserSessionEndReason = (typeof browserSessionEndReasons)[number];
 
+export const browserSessionReleaseOutcomes = ["completed", "waiting"] as const;
+
+export type BrowserSessionReleaseOutcome =
+  (typeof browserSessionReleaseOutcomes)[number];
+
+/** Portable handoff that relinquishes agent control without terminating the session. */
+export interface BrowserSessionReleaseRequest {
+  version: typeof BROWSER_SESSION_LIFECYCLE_VERSION;
+  releaseId: string;
+  sessionId: string;
+  outcome: BrowserSessionReleaseOutcome;
+  label?: string;
+  url?: string;
+  title?: string;
+}
+
+/** Durable acknowledgement that a browser remains available after agent control ends. */
+export interface BrowserSessionReleaseReceipt extends BrowserSessionReleaseRequest {
+  status: "released";
+  releasedAt: string;
+}
+
 /** Portable intent sent when a host wants to terminate, not merely hide, a session. */
 export interface BrowserSessionEndRequest {
   version: typeof BROWSER_SESSION_LIFECYCLE_VERSION;
@@ -55,6 +77,50 @@ export function createBrowserSessionEndRequest(
     throw new TypeError("Invalid browser session end request.");
   }
   return request;
+}
+
+export function createBrowserSessionReleaseRequest(
+  releaseId: string,
+  sessionId: string,
+  outcome: BrowserSessionReleaseOutcome,
+  metadata: Pick<BrowserSessionReleaseRequest, "label" | "url" | "title"> = {},
+): BrowserSessionReleaseRequest {
+  const request = {
+    version: BROWSER_SESSION_LIFECYCLE_VERSION,
+    releaseId,
+    sessionId,
+    outcome,
+    ...metadata,
+  };
+  if (!isBrowserSessionReleaseRequest(request)) {
+    throw new TypeError("Invalid browser session release request.");
+  }
+  return request;
+}
+
+export function isBrowserSessionReleaseRequest(
+  value: unknown,
+): value is BrowserSessionReleaseRequest {
+  if (!record(value)) return false;
+  return value.version === BROWSER_SESSION_LIFECYCLE_VERSION &&
+    boundedIdentifier(value.releaseId) &&
+    boundedIdentifier(value.sessionId) &&
+    browserSessionReleaseOutcomes.includes(
+      value.outcome as BrowserSessionReleaseOutcome,
+    ) &&
+    optionalBoundedString(value.label, 160) &&
+    optionalBoundedString(value.title, 256) &&
+    optionalSafeHttpURL(value.url);
+}
+
+export function isBrowserSessionReleaseReceipt(
+  value: unknown,
+): value is BrowserSessionReleaseReceipt {
+  if (!record(value)) return false;
+  return value.status === "released" &&
+    typeof value.releasedAt === "string" &&
+    Number.isFinite(Date.parse(value.releasedAt)) &&
+    isBrowserSessionReleaseRequest(value);
 }
 
 export function isBrowserSessionEndRequest(value: unknown): value is BrowserSessionEndRequest {
@@ -124,6 +190,23 @@ function normalizeLifecycleGatewayOrigin(value: string): string {
 
 function boundedIdentifier(value: unknown): value is string {
   return typeof value === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(value);
+}
+
+function optionalBoundedString(value: unknown, maximumLength: number): boolean {
+  return value === undefined ||
+    (typeof value === "string" && value.length <= maximumLength);
+}
+
+function optionalSafeHttpURL(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (typeof value !== "string" || value.length > 2_048) return false;
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:") &&
+      !url.username && !url.password;
+  } catch {
+    return false;
+  }
 }
 
 function record(value: unknown): value is Record<string, unknown> {

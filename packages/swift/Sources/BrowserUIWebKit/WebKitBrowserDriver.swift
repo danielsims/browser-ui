@@ -22,6 +22,10 @@ public enum WebKitBrowserDriverError: LocalizedError {
 public struct WebKitBrowserDriverConfiguration: Sendable {
     public enum DataStore: Sendable {
         case persistent
+        /// Persistent WebKit storage isolated to one browser identity. Hosts
+        /// can use a durable conversation UUID so cookies and site state
+        /// survive relaunches without leaking into another agent's browser.
+        case persistentSession(UUID)
         case nonPersistent
     }
 
@@ -29,20 +33,33 @@ public struct WebKitBrowserDriverConfiguration: Sendable {
     public var desktopViewportSize: CGSize
     public var pageLoadTimeout: TimeInterval
     public var postLoadSettleDelay: TimeInterval
+    /// Stable identity shown beside the agent pointer. Action details belong
+    /// to `BrowserAgentActivity.label`, not the cursor label.
+    public var agentCursorLabel: String?
+    /// Optional idle fade for hosts that prefer it. `nil` keeps the pointer at
+    /// its last position for the lifetime of the browser session.
+    public var agentCursorIdleTimeout: TimeInterval?
 
     public init(
         dataStore: DataStore = .persistent,
         desktopViewportSize: CGSize = CGSize(width: 1440, height: 900),
         pageLoadTimeout: TimeInterval = 30,
-        postLoadSettleDelay: TimeInterval = 0.35
+        postLoadSettleDelay: TimeInterval = 0.35,
+        agentCursorLabel: String? = nil,
+        agentCursorIdleTimeout: TimeInterval? = nil
     ) {
         precondition(desktopViewportSize.width > 0 && desktopViewportSize.height > 0)
         precondition(pageLoadTimeout > 0)
         precondition(postLoadSettleDelay >= 0)
+        if let agentCursorIdleTimeout {
+            precondition(agentCursorIdleTimeout >= 0)
+        }
         self.dataStore = dataStore
         self.desktopViewportSize = desktopViewportSize
         self.pageLoadTimeout = pageLoadTimeout
         self.postLoadSettleDelay = postLoadSettleDelay
+        self.agentCursorLabel = agentCursorLabel
+        self.agentCursorIdleTimeout = agentCursorIdleTimeout
     }
 }
 
@@ -52,7 +69,7 @@ public struct WebKitBrowserDriverConfiguration: Sendable {
 /// so no external browser service or credentials are needed — the page runs on
 /// the phone, the agent drives it, and the chat shows live frames.
 ///
-/// The shared `WKWebView` renders offscreen while the agent works; the chat's
+/// The driver's `WKWebView` renders offscreen while the agent works; the chat's
 /// browser card shows snapshots. Tapping the card presents the *same* web view
 /// full-screen so the user can interact directly (scroll, click, log in), and
 /// the agent keeps driving the identical session.
@@ -80,14 +97,23 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
     @Published public var cursor: BrowserAgentCursorState?
     @Published public var lastError: String?
     public private(set) var presentationMode: BrowserViewportPresentationMode = .preview
+    /// Selects the one preview surface allowed to own WebKit while SwiftUI
+    /// transitions between inline and picture-in-picture placements.
+    public private(set) var displayMode: BrowserDisplayMode = .inline
     /// Forces SwiftUI browser containers to re-attach the shared WKWebView
     /// after it moves between the inline dock and fullscreen.
     @Published public var surfaceRevision = 0
 
     private var _webView: WKWebView?
     private weak var takeoverSurface: WebKitBrowserSurfaceHost?
+    private weak var previewSurface: WebKitBrowserSurfaceHost?
     private var isSnapshotInFlight = false
     private var cursorHideTask: Task<Void, Never>?
+    /// The action interrupted by human takeover. Its asynchronous WebKit work
+    /// may still unwind after cancellation, but only that action is prevented
+    /// from republishing the cursor. A later agent action receives a new ID and
+    /// presents normally.
+    private var suppressedAgentActivityID: String?
 
     public var isEngaged: Bool {
         phase == .connected && scope != nil
@@ -98,13 +124,23 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
     var webView: WKWebView {
         if let webView = _webView { return webView }
         let configuration = WKWebViewConfiguration()
-        if self.configuration.dataStore == .nonPersistent {
+        switch self.configuration.dataStore {
+        case .persistent:
+            break
+        case .persistentSession(let identifier):
+            configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: identifier)
+        case .nonPersistent:
             configuration.websiteDataStore = .nonPersistent()
         }
         configuration.allowsInlineMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
-        configuration.defaultWebpagePreferences.preferredContentMode = .desktop
+        // Keep the phone's native WebKit identity for the lifetime of the
+        // page. The preview/takeover distinction is a viewport-size concern:
+        // 1440×900 produces the desktop layout while the phone-sized takeover
+        // produces the responsive mobile layout. Changing content mode after
+        // navigation does not reliably replace the already-loaded document.
+        configuration.defaultWebpagePreferences.preferredContentMode = .mobile
         let webView = WKWebView(
             frame: CGRect(origin: .zero, size: self.configuration.desktopViewportSize),
             configuration: configuration
@@ -122,11 +158,21 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
 
     fileprivate func attachSurface(
         _ surface: WebKitBrowserSurfaceHost,
-        presentationMode: BrowserViewportPresentationMode
+        presentationMode: BrowserViewportPresentationMode,
+        displayMode: BrowserDisplayMode
     ) {
         if presentationMode == .takeover {
             takeoverSurface = surface
-        } else if let takeoverSurface, takeoverSurface !== surface {
+        } else {
+            // SwiftUI can update the outgoing and incoming preview trees in
+            // either order. Only the explicitly selected placement may claim
+            // the single live WKWebView.
+            guard displayMode == self.displayMode else { return }
+            previewSurface = surface
+        }
+        if presentationMode != .takeover,
+           let takeoverSurface,
+           takeoverSurface !== surface {
             // A retained inline SwiftUI tree can update while fullscreen is
             // active. The native surface owner must not be stolen back from
             // the higher-priority takeover presentation.
@@ -139,9 +185,21 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
         surface.attach(existingWebView)
     }
 
+    /// Select the preview placement before its SwiftUI tree is inserted. This
+    /// makes WebKit re-parenting deterministic even when the outgoing surface
+    /// receives a late update or dismantle callback.
+    public func setDisplayMode(_ displayMode: BrowserDisplayMode) {
+        guard displayMode != .fullscreen, self.displayMode != displayMode else { return }
+        self.displayMode = displayMode
+        surfaceRevision &+= 1
+    }
+
     fileprivate func detachSurface(_ surface: WebKitBrowserSurfaceHost) {
         if takeoverSurface === surface {
             takeoverSurface = nil
+        }
+        if previewSurface === surface {
+            previewSurface = nil
         }
         surface.detachWebView()
     }
@@ -186,6 +244,8 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
         activity = nil
         cursor = nil
         lastError = nil
+        suppressedAgentActivityID = nil
+        displayMode = .inline
         presentationMode = .preview
         _ = webView
     }
@@ -206,6 +266,8 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
         cursor = nil
         cursorHideTask?.cancel()
         cursorHideTask = nil
+        suppressedAgentActivityID = nil
+        displayMode = .inline
         phase = .idle
         presentationMode = .preview
         surfaceRevision &+= 1
@@ -234,6 +296,45 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
             sessionId: lifecycleSessionId,
             clientInstanceId: clientInstanceId,
             reason: reason)
+    }
+
+    /// Create a durable handoff artifact while preserving the live WebKit
+    /// session for the user or a later agent turn.
+    public func makeReleaseRequest(
+        outcome: BrowserSessionReleaseOutcome,
+        label: String? = nil
+    ) throws -> BrowserSessionReleaseRequest {
+        guard let lifecycleSessionId else {
+            throw WebKitBrowserDriverError.transport("no active browsing session to release")
+        }
+        let safeURL = Self.redactedURLForModel(url)
+        return try BrowserSessionReleaseRequest(
+            releaseId: UUID().uuidString,
+            sessionId: lifecycleSessionId,
+            outcome: outcome,
+            label: label,
+            url: safeURL == "[invalid URL]" ? nil : safeURL,
+            title: title)
+    }
+
+    /// Relinquish agent presentation without cancelling or terminating the
+    /// browser. A later semantic action automatically resumes agent control.
+    public func releaseAgentControl() {
+        suppressedAgentActivityID = activity?.id
+        operating = false
+        actionLabel = nil
+        lastActionLabel = nil
+        activity = nil
+        cursorHideTask?.cancel()
+        cursorHideTask = nil
+        cursor = nil
+    }
+
+    /// Transfer the visible browser to the human without ending its session.
+    /// The next agent action opts back into activity presentation, while any
+    /// late completion from the interrupted action stays visually suppressed.
+    public func takeUserControl() {
+        releaseAgentControl()
     }
 
     // MARK: - Agent tools
@@ -310,6 +411,7 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
     /// with CSS selectors retained as an escape hatch.
     public func click(target: String) async throws -> String {
         try await perform(action: "click", label: "Clicking element") {
+            try await scrollTargetIntoView(target)
             try await prepareCursor(target: target, action: "Clicking", pressed: true)
             defer { releaseCursorPress() }
             let q = Self.jsString(target)
@@ -321,7 +423,10 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
                 if (!el) el = document.querySelector(\(q));
                 if (!el) return {__error: 'no element matches ref or selector ' + \(q)};
                 if (el.disabled || el.getAttribute('aria-disabled') === 'true') return {__error: 'element is disabled'};
-                el.scrollIntoView({block: 'center', inline: 'center'});
+                if (el instanceof HTMLSelectElement) {
+                  el.blur();
+                  return {__error: 'select controls require the select action'};
+                }
                 var rect = el.getBoundingClientRect();
                 var style = getComputedStyle(el);
                 if (!rect.width || !rect.height || style.visibility === 'hidden' || style.display === 'none') {
@@ -330,7 +435,33 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
                 var hitX = Math.max(0, Math.min(innerWidth - 1, rect.left + rect.width / 2));
                 var hitY = Math.max(0, Math.min(innerHeight - 1, rect.top + rect.height / 2));
                 var covering = document.elementFromPoint(hitX, hitY);
-                if (covering && covering !== el && !el.contains(covering)) {
+                function composedContains(ancestor, node) {
+                  var current = node;
+                  while (current) {
+                    if (current === ancestor) return true;
+                    if (current.parentNode) {
+                      current = current.parentNode;
+                    } else {
+                      var root = current.getRootNode && current.getRootNode();
+                      current = root && root.host ? root.host : null;
+                    }
+                  }
+                  return false;
+                }
+                var inputType = (el.getAttribute('type') || '').toLowerCase();
+                var semanticRole = (el.getAttribute('role') || '').toLowerCase();
+                var isCheckable = inputType === 'radio' || inputType === 'checkbox' ||
+                  semanticRole === 'radio' || semanticRole === 'checkbox' ||
+                  semanticRole === 'switch';
+                // Custom controls often put pointer events on a wrapper while
+                // retaining a semantic input as its descendant. That wrapper
+                // is part of the target. Checkable controls are also commonly
+                // visually replaced by a sibling click layer; activating the
+                // fresh semantic ref is the correct equivalent of its label.
+                // Continue to reject unrelated overlays for ordinary elements.
+                var targetOwnsHit = covering && composedContains(el, covering);
+                var hitOwnsTarget = covering && composedContains(covering, el);
+                if (covering && covering !== el && !targetOwnsHit && !hitOwnsTarget && !isCheckable) {
                   var coveringLabel = (covering.getAttribute('aria-label') || covering.id || covering.className || covering.tagName || 'element');
                   return {__error: 'element is covered by <' + String(coveringLabel).replace(/\\s+/g, ' ').slice(0, 80) + '>'};
                 }
@@ -391,6 +522,7 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
             })()
             """
             let result = try await runAction(script)
+            try await waitForSemanticStateToStabilize()
             try? await refreshSnapshot()
             return result
         }
@@ -413,11 +545,33 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
                 var el = target && state && state.elements ? state.elements[target] : null;
                 if (!el && target) el = document.querySelector(target);
                 if (!el) el = document.activeElement || document.body;
+                if (el instanceof HTMLSelectElement) {
+                  el.blur();
+                  return {__error: 'select controls require the select action'};
+                }
                 el.focus && el.focus();
-                el.dispatchEvent(new KeyboardEvent('keydown', {key: \(k), bubbles: true}));
-                el.dispatchEvent(new KeyboardEvent('keyup', {key: \(k), bubbles: true}));
-                if (\(k) === 'Enter' && el.form) {
-                  if (el.form.requestSubmit) el.form.requestSubmit(); else el.form.submit();
+                var eventInit = {key: \(k), bubbles: true, cancelable: true};
+                var keydownAllowed = el.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+                var keypressAllowed = true;
+                if (\(k) === 'Enter' || String(\(k)).length === 1) {
+                  keypressAllowed = el.dispatchEvent(new KeyboardEvent('keypress', eventInit));
+                }
+                el.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+                // Synthetic key events do not perform WebKit's native default
+                // action. Fall back only when the page did not cancel either
+                // event, and activate its submit control so framework click
+                // handlers run before native form submission.
+                if (\(k) === 'Enter' && el.form && keydownAllowed && keypressAllowed) {
+                  var submitter = el.form.querySelector(
+                    'button:not([type]),button[type="submit"],input[type="submit"],input[type="image"]'
+                  );
+                  if (submitter && !submitter.disabled) {
+                    submitter.click();
+                  } else if (el.form.requestSubmit) {
+                    el.form.requestSubmit();
+                  } else {
+                    el.form.submit();
+                  }
                 }
                 return {pressed: \(k), target: target || 'focused element'};
               } catch(e) { return {__error: String(e)}; }
@@ -515,11 +669,53 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
                 if (!matched.length) return {__error: 'no option matches the requested value'};
                 el.dispatchEvent(new Event('input', {bubbles: true}));
                 el.dispatchEvent(new Event('change', {bubbles: true}));
+                el.blur();
+                if (document.activeElement && document.activeElement !== document.body) {
+                  document.activeElement.blur();
+                }
                 return {selected: matched};
               } catch(e) { return {__error: String(e)}; }
             })()
             """)
             try await waitForSemanticStateToStabilize()
+            let verification = try await evaluateWrapped("""
+            (function(){
+              try {
+                var state = window.__celldAgentBrowser;
+                var el = state && state.elements ? state.elements[\(q)] : null;
+                if (!el) el = document.querySelector(\(q));
+                if (!(el instanceof HTMLSelectElement)) {
+                  return {__error: 'select control disappeared after its change event'};
+                }
+                var requested = \(encodedValues);
+                var selected = Array.from(el.selectedOptions).map(function(option) {
+                  return {
+                    value: option.value,
+                    label: (option.textContent || '').replace(/\\s+/g, ' ').trim()
+                  };
+                });
+                var persisted = selected.every(function(option) {
+                  return requested.indexOf(option.value) !== -1 ||
+                    requested.indexOf(option.label) !== -1;
+                }) && selected.length > 0;
+                var available = Array.from(el.options).slice(0, 40).map(function(option) {
+                  return (option.textContent || option.value || '').replace(/\\s+/g, ' ').trim();
+                }).filter(Boolean);
+                return {persisted: persisted, selected: selected, available: available};
+              } catch(e) { return {__error: String(e)}; }
+            })()
+            """)
+            if let payload = verification as? [String: Any],
+               let message = payload["__error"] as? String {
+                throw WebKitBrowserDriverError.evaluate(message)
+            }
+            guard let payload = verification as? [String: Any],
+                  (payload["persisted"] as? Bool) == true
+            else {
+                let detail = Self.serialize(verification)
+                throw WebKitBrowserDriverError.evaluate(
+                    "selection did not persist after the page updated: \(detail)")
+            }
             return result + "\nCall browser_snapshot to observe the result."
         }
     }
@@ -529,6 +725,7 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
             action: checked ? "check" : "uncheck",
             label: checked ? "Checking option" : "Unchecking option"
         ) {
+            try await scrollTargetIntoView(target)
             try await prepareCursor(
                 target: target,
                 action: checked ? "Checking" : "Unchecking",
@@ -552,6 +749,28 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
             })()
             """)
             try await waitForSemanticStateToStabilize()
+            let verified = try await evaluateWrapped("""
+            (function(){
+              try {
+                var state = window.__celldAgentBrowser;
+                var el = state && state.elements ? state.elements[\(q)] : null;
+                if (!el) el = document.querySelector(\(q));
+                if (!el) return {__error: 'target disappeared after activation'};
+                var actual = typeof el.checked === 'boolean'
+                  ? el.checked
+                  : el.getAttribute('aria-checked') === 'true';
+                return actual === \(checked ? "true" : "false");
+              } catch(e) { return {__error: String(e)}; }
+            })()
+            """)
+            if let payload = verified as? [String: Any],
+               let message = payload["__error"] as? String {
+                throw WebKitBrowserDriverError.evaluate(message)
+            }
+            guard (verified as? Bool) == true else {
+                throw WebKitBrowserDriverError.evaluate(
+                    "control did not become \(checked ? "checked" : "unchecked")")
+            }
             return result + "\nCall browser_snapshot to observe the result."
         }
     }
@@ -626,6 +845,30 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
         activity?.durationMs = Date().timeIntervalSince(startedAt) * 1_000
     }
 
+    private func scrollTargetIntoView(_ target: String) async throws {
+        let q = Self.jsString(target)
+        let value = try await evaluateWrapped("""
+        (function(){
+          try {
+            var state = window.__celldAgentBrowser;
+            var el = state && state.elements ? state.elements[\(q)] : null;
+            if (!el) el = document.querySelector(\(q));
+            if (!el) return {__error: 'no element matches ref or selector ' + \(q)};
+            el.scrollIntoView({block: 'center', inline: 'center'});
+            return true;
+          } catch(e) { return {__error: String(e)}; }
+        })()
+        """)
+        if let payload = value as? [String: Any],
+           let message = payload["__error"] as? String {
+            throw WebKitBrowserDriverError.evaluate(message)
+        }
+        // WebKit applies scrollIntoView synchronously, but sticky containers
+        // and layout can settle on the following frame. Resolve cursor and hit
+        // geometry only after the target reaches its final viewport position.
+        try? await Task.sleep(for: .milliseconds(50))
+    }
+
     private func prepareCursor(
         target: String,
         action: String,
@@ -673,7 +916,7 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
         let resting = BrowserAgentCursorState(
             x: x,
             y: y,
-            label: resolvedLabel,
+            label: configuration.agentCursorLabel,
             pressed: false,
             typing: typing)
         publishCursor(resting)
@@ -690,10 +933,18 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
     }
 
     private func publishCursor(_ state: BrowserAgentCursorState) {
+        if let suppressedAgentActivityID,
+           activity?.id == suppressedAgentActivityID {
+            return
+        }
         cursorHideTask?.cancel()
         cursor = state
+        guard let timeout = configuration.agentCursorIdleTimeout else {
+            cursorHideTask = nil
+            return
+        }
         cursorHideTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(4))
+            try? await Task.sleep(for: .seconds(timeout))
             guard !Task.isCancelled else { return }
             cursor?.visible = false
         }
@@ -752,12 +1003,8 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
     /// Full-screen takeover uses the phone's live bounds while retaining the
     /// same WebKit instance, history, cookies, and page state.
     public func enterTakeoverViewport() async {
-        // The fullscreen representable must own the shared WebView before the
-        // responsive page is asked to recompute its viewport.
-        await Task.yield()
-        webView.superview?.superview?.layoutIfNeeded()
         presentationMode = .takeover
-        webView.configuration.defaultWebpagePreferences.preferredContentMode = .mobile
+        await waitForSurfaceLayout(.takeover)
         dispatchViewportChange()
         await waitForRenderCommit()
     }
@@ -765,18 +1012,43 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
     /// The inline host restores the fixed desktop canvas when it re-attaches.
     public func restoreDesktopViewport() async {
         presentationMode = .preview
-        guard let webView = _webView else { return }
-        webView.configuration.defaultWebpagePreferences.preferredContentMode = .desktop
+        guard _webView != nil else { return }
         // Publishing the revision lets the inline host reclaim and lay out the
         // shared WebView at 1440x900. Keep the frozen frame visible until two
         // browser paint frames have completed at that size.
         surfaceRevision &+= 1
-        await Task.yield()
-        try? await Task.sleep(for: .milliseconds(34))
-        webView.superview?.superview?.layoutIfNeeded()
+        await waitForSurfaceLayout(.preview)
         dispatchViewportChange()
         await waitForRenderCommit()
         try? await refreshSnapshot()
+    }
+
+    /// Wait for the correct native host to own and size the shared WebView.
+    /// SwiftUI fullscreen presentation and representable attachment happen on
+    /// separate update passes; a fixed delay can therefore race and leave the
+    /// previous desktop canvas in takeover. Completion here acknowledges the
+    /// actual native geometry instead.
+    private func waitForSurfaceLayout(_ mode: BrowserViewportPresentationMode) async {
+        while !Task.isCancelled {
+            let surface = mode == .takeover ? takeoverSurface : previewSurface
+            if let surface, surface.window != nil {
+                surface.setNeedsLayout()
+                surface.layoutIfNeeded()
+                let expected = mode == .takeover
+                    ? surface.bounds.size
+                    : configuration.desktopViewportSize
+                let actual = webView.bounds.size
+                if expected.width > 0,
+                   expected.height > 0,
+                   abs(actual.width - expected.width) < 1,
+                   abs(actual.height - expected.height) < 1,
+                   webView.superview != nil {
+                    return
+                }
+            }
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(16))
+        }
     }
 
     private func dispatchViewportChange() {
@@ -859,9 +1131,21 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
 
             let value = try await evaluateWrapped(#"""
             (function(){
-              var nodes = document.querySelectorAll(
-                'input,textarea,select,option,button,[role],[aria-checked],[aria-selected],[aria-expanded],[aria-disabled]'
-              );
+              var roots = [document];
+              function collectShadowRoots(root) {
+                Array.from(root.querySelectorAll('*')).forEach(function(el) {
+                  if (el.shadowRoot) {
+                    roots.push(el.shadowRoot);
+                    collectShadowRoots(el.shadowRoot);
+                  }
+                });
+              }
+              collectShadowRoots(document);
+              var selector = 'input,textarea,select,option,button,[role],[aria-checked],[aria-selected],[aria-expanded],[aria-disabled]';
+              var nodes = [];
+              roots.forEach(function(root) {
+                nodes = nodes.concat(Array.from(root.querySelectorAll(selector)));
+              });
               var parts = [location.href, document.title, String(nodes.length)];
               for (var i = 0; i < nodes.length; i++) {
                 var el = nodes[i];
@@ -932,25 +1216,67 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
       }
       state.elements = {};
 
-      function visible(el) {
-        var rect = el.getBoundingClientRect();
-        var style = getComputedStyle(el);
-        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-      }
       function clean(value, limit) {
         return String(value || '').replace(/\s+/g, ' ').trim().slice(0, limit);
+      }
+      function collectRoots(root, destination) {
+        destination.push(root);
+        Array.from(root.querySelectorAll('*')).forEach(function(el) {
+          if (el.shadowRoot) collectRoots(el.shadowRoot, destination);
+        });
+        return destination;
+      }
+      function queryAll(roots, selector) {
+        var matches = [];
+        roots.forEach(function(root) {
+          matches = matches.concat(Array.from(root.querySelectorAll(selector)));
+        });
+        return matches;
+      }
+      function excludedByAncestor(el) {
+        var current = el;
+        while (current) {
+          if (current.matches && current.matches('[hidden],[aria-hidden="true"],[inert]')) {
+            return true;
+          }
+          if (current.parentElement) {
+            current = current.parentElement;
+          } else {
+            var root = current.getRootNode && current.getRootNode();
+            current = root && root.host ? root.host : null;
+          }
+        }
+        return false;
+      }
+      function rendered(el) {
+        var rect = el.getBoundingClientRect();
+        var style = getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 &&
+          style.visibility !== 'hidden' && style.display !== 'none' &&
+          !excludedByAncestor(el);
+      }
+      function intersectsViewport(el) {
+        var rect = el.getBoundingClientRect();
+        return rect.bottom > 0 && rect.right > 0 &&
+          rect.top < innerHeight && rect.left < innerWidth;
       }
       function role(el) {
         var explicit = el.getAttribute('role');
         if (explicit) return explicit;
         var tag = el.tagName.toLowerCase();
         if (tag === 'a') return 'link';
+        if (tag === 'button' || tag === 'summary') return 'button';
+        if (tag === 'textarea') return 'textbox';
+        if (tag === 'select') return el.multiple ? 'listbox' : 'combobox';
         if (tag === 'input') {
           var inputType = (el.type || 'text').toLowerCase();
           if (inputType === 'submit' || inputType === 'button') return 'button';
           if (inputType === 'radio') return 'radio';
           if (inputType === 'checkbox') return 'checkbox';
-          return 'input';
+          if (inputType === 'search') return 'searchbox';
+          if (inputType === 'range') return 'slider';
+          if (inputType === 'number') return 'spinbutton';
+          return 'textbox';
         }
         return tag;
       }
@@ -963,16 +1289,44 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
         }
         var labelledBy = el.getAttribute('aria-labelledby');
         if (labelledBy) {
+          var root = el.getRootNode ? el.getRootNode() : document;
           var resolved = clean(labelledBy.split(/\s+/).map(function(id) {
-            var node = document.getElementById(id);
+            var node = root.getElementById ? root.getElementById(id) : null;
+            if (!node && el.ownerDocument) node = el.ownerDocument.getElementById(id);
             return node ? node.innerText : '';
           }).join(' '), 180);
           if (resolved) return resolved;
         }
-        return clean(el.getAttribute('aria-label') || el.getAttribute('title') || el.innerText || el.getAttribute('placeholder') || el.value || el.name || el.id, 180);
+        var described = el.getAttribute('aria-describedby');
+        var description = '';
+        if (described) {
+          var descriptionRoot = el.getRootNode ? el.getRootNode() : document;
+          description = clean(described.split(/\s+/).map(function(id) {
+            var node = descriptionRoot.getElementById ? descriptionRoot.getElementById(id) : null;
+            if (!node && el.ownerDocument) node = el.ownerDocument.getElementById(id);
+            return node ? node.innerText : '';
+          }).join(' '), 120);
+        }
+        var primary = clean(
+          el.getAttribute('aria-label') || el.getAttribute('alt') ||
+          el.getAttribute('title') || el.innerText || el.textContent ||
+          el.getAttribute('placeholder') || el.value || el.name || el.id,
+          180
+        );
+        return clean(primary + (description ? ' ' + description : ''), 220);
       }
 
-      var selector = 'a[href],button,input,textarea,select,summary,[role="button"],[role="link"],[role="checkbox"],[role="menuitem"],[contenteditable="true"],[tabindex]';
+      var allRoots = collectRoots(document, []);
+      var selector = [
+        'a[href]', 'button', 'input', 'textarea', 'select', 'summary',
+        '[contenteditable="true"]', '[tabindex]',
+        '[role="button"]', '[role="link"]', '[role="textbox"]',
+        '[role="searchbox"]', '[role="checkbox"]', '[role="radio"]',
+        '[role="combobox"]', '[role="listbox"]', '[role="option"]',
+        '[role="menuitem"]', '[role="menuitemcheckbox"]',
+        '[role="menuitemradio"]', '[role="slider"]', '[role="spinbutton"]',
+        '[role="switch"]', '[role="tab"]', '[role="treeitem"]'
+      ].join(',');
       var main = document.querySelector('main,[role="main"]') || document.body;
       // Global search and navigation controls commonly live outside <main>
       // on long client-rendered pages. Inspect the entire document, then
@@ -988,9 +1342,12 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
         if (tag === 'a' || explicitRole === 'link') return 3;
         return 4;
       }
-      var activeDialogs = Array.from(document.querySelectorAll(
-        '[role="dialog"],[aria-modal="true"]'
-      )).filter(visible);
+      var activeDialogs = queryAll(
+        allRoots,
+        '[aria-modal="true"],dialog[open]'
+      ).filter(function(el) {
+        return rendered(el) && intersectsViewport(el);
+      });
       // A modal establishes the browser's current interaction boundary. Do not
       // expose controls behind it: JavaScript click() could otherwise activate
       // elements that a real pointer cannot reach through the modal backdrop.
@@ -1002,12 +1359,29 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
         return activeDialogs.some(function(dialog) { return dialog.contains(el); }) ? 0 : 1;
       }
       function viewportPriority(el) {
-        var rect = el.getBoundingClientRect();
-        return rect.bottom > 0 && rect.right > 0 &&
-          rect.top < innerHeight && rect.left < innerWidth ? 0 : 1;
+        return intersectsViewport(el) ? 0 : 1;
       }
-      var interactionRoot = activeDialog || document;
-      var nodes = Array.from(interactionRoot.querySelectorAll(selector))
+      var interactionRoots = activeDialog ? collectRoots(activeDialog, []) : allRoots;
+      var selectedNodes = new Set(queryAll(interactionRoots, selector));
+      // Match agent-browser's accessibility fallback for custom controls that
+      // expose pointer, onclick, or focus semantics without a native tag/role.
+      // Avoid descendants that merely inherit cursor:pointer from a parent so
+      // a product card becomes one useful ref rather than dozens of duplicates.
+      queryAll(interactionRoots, '*').forEach(function(el) {
+        if (selectedNodes.has(el) || !rendered(el)) return;
+        var style = getComputedStyle(el);
+        var pointer = style.cursor === 'pointer';
+        var onclick = el.hasAttribute('onclick') || el.onclick !== null;
+        var tabindex = el.hasAttribute('tabindex') && el.getAttribute('tabindex') !== '-1';
+        var editable = el.getAttribute('contenteditable') === '' ||
+          el.getAttribute('contenteditable') === 'true';
+        if (!pointer && !onclick && !tabindex && !editable) return;
+        if (pointer && !onclick && !tabindex && !editable &&
+            el.parentElement && getComputedStyle(el.parentElement).cursor === 'pointer') return;
+        if (!clean(el.textContent, 100) && !el.getAttribute('aria-label')) return;
+        selectedNodes.add(el);
+      });
+      var nodes = Array.from(selectedNodes)
         .map(function(el, index) {
           return {
             el: el,
@@ -1030,7 +1404,7 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
       // whole workflow; the agent loop separately compacts model-facing text.
       for (var i = 0; i < nodes.length && elements.length < 240; i++) {
         var el = nodes[i];
-        if (!visible(el) || el.getAttribute('aria-hidden') === 'true') continue;
+        if (!rendered(el)) continue;
         var ref = state.reverse.get(el);
         if (!ref) {
           ref = 'e' + state.next++;
@@ -1045,14 +1419,27 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
         if (el.checked) item.checked = true;
         if (el.selected) item.selected = true;
         if (!sensitive && el.value && type !== 'password') item.value = clean(el.value, 100);
+        if (el instanceof HTMLSelectElement) {
+          var selectedOption = el.selectedOptions && el.selectedOptions[0];
+          if (selectedOption) item.selectedLabel = clean(selectedOption.textContent, 100);
+          item.options = Array.from(el.options).slice(0, 40).map(function(option) {
+            return clean(option.textContent || option.value, 80);
+          }).filter(Boolean);
+        }
         if (el.getAttribute('placeholder')) item.placeholder = clean(el.getAttribute('placeholder'), 80);
         elements.push(item);
       }
 
+      var shadowText = interactionRoots.slice(1).map(function(root) {
+        return root.textContent || '';
+      }).join(' ');
+      var primaryText = activeDialog
+        ? activeDialog.innerText
+        : (main ? main.innerText : '');
       return {
         url: location.origin + location.pathname,
         title: document.title,
-        text: clean(activeDialog ? activeDialog.innerText : (main ? main.innerText : ''), 1800),
+        text: clean(primaryText + ' ' + shadowText, 3200),
         elements: elements
       };
     })()
@@ -1079,6 +1466,14 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
             if let value = item["value"] as? String, !value.isEmpty {
                 flags.append("value=\"\(value)\"")
             }
+            if let selectedLabel = item["selectedLabel"] as? String,
+               !selectedLabel.isEmpty,
+               selectedLabel != item["value"] as? String {
+                flags.append("selection=\"\(selectedLabel)\"")
+            }
+            if let options = item["options"] as? [String], !options.isEmpty {
+                flags.append("options=[\(options.map { "\"\($0)\"" }.joined(separator: ", "))]")
+            }
             if let placeholder = item["placeholder"] as? String, !placeholder.isEmpty {
                 flags.append("placeholder=\"\(placeholder)\"")
             }
@@ -1095,7 +1490,7 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
             sections.append("Page text preview:\n\(String(pageText.prefix(900)))")
         }
         if !elements.isEmpty {
-            sections.append("Interactive elements (use these refs with browser_click/browser_type/browser_press):\n" + elements.joined(separator: "\n"))
+            sections.append("Interactive elements (use these refs with the matching browser action):\n" + elements.joined(separator: "\n"))
         }
         if !pageText.isEmpty {
             sections.append("Page text:\n\(pageText)")
@@ -1260,6 +1655,7 @@ final class WebKitBrowserSurfaceHost: UIView {
     var presentationMode: BrowserViewportPresentationMode = .preview {
         didSet {
             guard oldValue != presentationMode else { return }
+            applyInteractionMode()
             setNeedsLayout()
         }
     }
@@ -1274,7 +1670,22 @@ final class WebKitBrowserSurfaceHost: UIView {
         viewportContainer.addSubview(webView)
         hostedWebView = webView
         webView.autoresizingMask = []
+        applyInteractionMode()
         setNeedsLayout()
+    }
+
+    private func applyInteractionMode() {
+        guard let webView = hostedWebView else { return }
+        let isTakeover = presentationMode == .takeover
+        webView.isUserInteractionEnabled = isTakeover
+        if !isTakeover {
+            // Embedded previews are agent-driven. Releasing WebKit's first
+            // responder prevents native form pickers from escaping the clipped
+            // browser surface. Takeover mode restores normal Safari controls.
+            webView.endEditing(true)
+            webView.resignFirstResponder()
+            webView.window?.endEditing(true)
+        }
     }
 
     override func layoutSubviews() {
@@ -1313,22 +1724,26 @@ public struct WebKitBrowserView: View {
     @ObservedObject private var driver: WebKitBrowserDriver
     private let revision: Int
     private let presentationMode: BrowserViewportPresentationMode
+    private let displayMode: BrowserDisplayMode
 
     public init(
         driver: WebKitBrowserDriver,
         revision: Int = 0,
-        presentationMode: BrowserViewportPresentationMode = .preview
+        presentationMode: BrowserViewportPresentationMode = .preview,
+        displayMode: BrowserDisplayMode = .inline
     ) {
         self.driver = driver
         self.revision = revision
         self.presentationMode = presentationMode
+        self.displayMode = displayMode
     }
 
     public var body: some View {
         WebKitBrowserRepresentable(
             driver: driver,
             revision: revision,
-            presentationMode: presentationMode)
+            presentationMode: presentationMode,
+            displayMode: displayMode)
     }
 }
 
@@ -1336,15 +1751,18 @@ private struct WebKitBrowserRepresentable: UIViewRepresentable {
     private let driver: WebKitBrowserDriver
     let revision: Int
     let presentationMode: BrowserViewportPresentationMode
+    let displayMode: BrowserDisplayMode
 
     init(
         driver: WebKitBrowserDriver,
         revision: Int = 0,
-        presentationMode: BrowserViewportPresentationMode = .preview
+        presentationMode: BrowserViewportPresentationMode = .preview,
+        displayMode: BrowserDisplayMode = .inline
     ) {
         self.driver = driver
         self.revision = revision
         self.presentationMode = presentationMode
+        self.displayMode = displayMode
     }
 
     func makeUIView(context: Context) -> WebKitBrowserSurfaceHost {
@@ -1354,7 +1772,10 @@ private struct WebKitBrowserRepresentable: UIViewRepresentable {
         host.presentationMode = presentationMode
         host.desktopViewportSize = driver.configuration.desktopViewportSize
         host.driver = driver
-        driver.attachSurface(host, presentationMode: presentationMode)
+        driver.attachSurface(
+            host,
+            presentationMode: presentationMode,
+            displayMode: displayMode)
         return host
     }
 
@@ -1362,7 +1783,10 @@ private struct WebKitBrowserRepresentable: UIViewRepresentable {
         _ = revision
         uiView.presentationMode = presentationMode
         uiView.desktopViewportSize = driver.configuration.desktopViewportSize
-        driver.attachSurface(uiView, presentationMode: presentationMode)
+        driver.attachSurface(
+            uiView,
+            presentationMode: presentationMode,
+            displayMode: displayMode)
     }
 
     static func dismantleUIView(_ uiView: WebKitBrowserSurfaceHost, coordinator: Void) {

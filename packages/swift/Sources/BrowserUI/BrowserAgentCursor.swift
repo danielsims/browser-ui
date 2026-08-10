@@ -40,6 +40,10 @@ public struct BrowserAgentCursor: View {
                     .animation(.easeOut(duration: 0.18), value: state.visible)
             }
         }
+        // The cursor is an overlay coordinate space, not content with an
+        // intrinsic size. A text label previously gave some hosts an accidental
+        // layout size; pointer-only cursors must still occupy the full surface.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

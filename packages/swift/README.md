@@ -79,6 +79,30 @@ Presentation and browser lifetime are separate. Dismissing fullscreen returns
 to the preview viewport; it must not end the underlying browser. Use the
 package-owned terminal control and persist its portable receipt:
 
+`BrowserDisplayMode` matches React's `inline`, `picture-in-picture`, and
+`fullscreen` states. Hosts own placement and can use the matching package
+control to move one live session without ending it:
+
+```swift
+BrowserPictureInPictureButton(active: mode == .pictureInPicture) {
+    mode = mode == .pictureInPicture ? .inline : .pictureInPicture
+}
+```
+
+Normal agent completion should release control without destroying the page:
+
+```swift
+let request = try driver.makeReleaseRequest(
+    outcome: .completed,
+    label: "Configuration complete")
+driver.releaseAgentControl()
+// Persist BrowserSessionReleaseReceipt(request: request) with the transcript.
+```
+
+Render the durable receipt as a resumable transcript artifact with
+`BrowserSessionReleasedView`. Reserve terminal end requests for an explicit
+user decision to discard the session.
+
 ```swift
 BrowserEndSessionButton {
     do {

@@ -4,4 +4,4 @@
 "@browser-ui/react": minor
 ---
 
-Add a portable terminal browser-session lifecycle with authenticated gateway termination and cross-platform controls.
+Add portable browser-session handoff and termination contracts with authenticated gateway termination and cross-platform controls.
