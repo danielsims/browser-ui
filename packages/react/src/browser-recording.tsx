@@ -5,6 +5,7 @@ import { BrowserAgentCursor, type BrowserAgentCursorState } from "./agent-cursor
 import { BrowserDisplayControls, BrowserFullscreenTrigger, BrowserPictureInPictureTrigger } from "./browser-display";
 import { BrowserRoot, type BrowserRootProps } from "./browser-root";
 import { BrowserOperatingOverlay } from "./operating-overlay";
+import type { BrowserOperatingShaderOptions } from "./operating-shader";
 import { BrowserSurface } from "./browser-surface";
 import type { BrowserViewportSize } from "./agent-browser-viewport";
 import type { BrowserRecordingTimelineEvent } from "@browser-ui/core";
@@ -28,6 +29,8 @@ export interface BrowserRecordingProps extends Omit<BrowserRootProps, "children"
   preload?: "none" | "metadata" | "auto";
   operating?: boolean;
   operatingLabel?: string;
+  /** Visual treatment for the active agent overlay. */
+  operatingShader?: BrowserOperatingShaderOptions;
   /** Called when the person takes control from the recorded workflow overlay. */
   onTakeControl?: () => void;
   /** Optional normalized cursor captured alongside the recording. */
@@ -68,6 +71,7 @@ export const BrowserRecording = forwardRef<HTMLVideoElement, BrowserRecordingPro
   onTakeControl,
   operating = false,
   operatingLabel = "Agent is operating this browser",
+  operatingShader,
   playbackRate = 1,
   preload = "metadata",
   showFullscreen = false,
@@ -213,7 +217,7 @@ export const BrowserRecording = forwardRef<HTMLVideoElement, BrowserRecordingPro
     <BrowserSurface
       className="bui-browser-surface bui-recording-surface"
       overlay={<>
-        {operating ? <BrowserOperatingOverlay label={timelineState.operatingLabel ?? operatingLabel} onTakeControl={onTakeControl} /> : null}
+        {operating ? <BrowserOperatingOverlay label={timelineState.operatingLabel ?? operatingLabel} onTakeControl={onTakeControl} shader={operatingShader} /> : null}
         {timelineState.agentCursor ?? agentCursor ? <BrowserAgentCursor {...(timelineState.agentCursor ?? agentCursor)!} /> : null}
       </>}
       style={{ aspectRatio: recordingAspectRatio }}
