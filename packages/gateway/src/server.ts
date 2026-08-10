@@ -1,21 +1,25 @@
 import { randomBytes } from "node:crypto";
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createServer } from "node:http";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
+import { WebSocketServer } from "ws";
+
+import type {
+  BrowserSessionCapability,
+  BrowserSessionDescriptor,
+  BrowserSessionFrameEncoding,
+  BrowserSessionResolvedAccess,
+} from "@browser-ui/core";
 import {
   BROWSER_SESSION_BINARY_PROTOCOL,
   BROWSER_SESSION_PROTOCOL,
   BROWSER_SESSION_VERSION,
   isBrowserSessionEndRequest,
-  type BrowserSessionDescriptor,
-  type BrowserSessionCapability,
-  type BrowserSessionResolvedAccess,
-  type BrowserSessionFrameEncoding,
 } from "@browser-ui/core";
-import { WebSocketServer } from "ws";
+
 import type {
   BrowserGatewayAuthenticator,
   BrowserGatewayAuthorizer,
-  BrowserGatewayPrincipal,
 } from "./auth.js";
 import { BrowserSessionActor } from "./session-actor.js";
 import { OneTimeBrowserGatewayTickets } from "./tickets.js";
@@ -60,10 +64,14 @@ interface CreateSessionBody {
   expiresAt?: string;
 }
 
-export function createBrowserSessionGateway(options: BrowserSessionGatewayOptions): BrowserSessionGateway {
+export function createBrowserSessionGateway(
+  options: BrowserSessionGatewayOptions,
+): BrowserSessionGateway {
   const maximumRequestBytes = options.maximumRequestBytes ?? 32 * 1024;
-  const maximumWebSocketPayloadBytes = options.maximumWebSocketPayloadBytes ?? 32 * 1024 * 1024;
-  const maximumEncodedFrameLength = options.maximumEncodedFrameLength ?? 24 * 1024 * 1024;
+  const maximumWebSocketPayloadBytes =
+    options.maximumWebSocketPayloadBytes ?? 32 * 1024 * 1024;
+  const maximumEncodedFrameLength =
+    options.maximumEncodedFrameLength ?? 24 * 1024 * 1024;
   const maximumBufferedBytes = options.maximumBufferedBytes ?? 2 * 1024 * 1024;
   const maximumFrameBufferedBytes = options.maximumFrameBufferedBytes ?? 0;
   const allowedRequestOrigins = new Set(
@@ -85,21 +93,30 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
 
   const server = createServer((request, response) => {
     void handleRequest(request, response).catch(() => {
-      if (!response.headersSent) json(response, 500, { error: "internal_error" });
+      if (!response.headersSent)
+        json(response, 500, { error: "internal_error" });
       else response.destroy();
     });
   });
 
   server.on("upgrade", (request, socket, head) => {
-    void handleUpgrade(request, socket, head).catch(() => rejectUpgrade(socket, 500));
+    try {
+      handleUpgrade(request, socket, head);
+    } catch {
+      rejectUpgrade(socket, 500);
+    }
   });
 
-  async function handleRequest(request: IncomingMessage, response: ServerResponse) {
+  async function handleRequest(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ) {
     const url = new URL(request.url ?? "/", "http://gateway.invalid");
     const requestOrigin = allowedRequestOrigin(request, allowedRequestOrigins);
     if (requestOrigin) applyCorsHeaders(request, response, requestOrigin);
     if (request.method === "OPTIONS" && request.headers.origin) {
-      if (!requestOrigin) return json(response, 403, { error: "origin_forbidden" });
+      if (!requestOrigin)
+        return json(response, 403, { error: "origin_forbidden" });
       response.writeHead(204, { "content-length": "0" });
       response.end();
       return;
@@ -111,8 +128,12 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
     if (request.method === "POST" && url.pathname === "/v1/sessions") {
       const principal = await options.authenticate(request, "source:create");
       if (!principal) return json(response, 401, { error: "unauthorized" });
-      const body = await readJson<CreateSessionBody>(request, maximumRequestBytes);
-      if (!validCreateSession(body)) return json(response, 400, { error: "invalid_session" });
+      const body = await readJson<CreateSessionBody>(
+        request,
+        maximumRequestBytes,
+      );
+      if (!validCreateSession(body))
+        return json(response, 400, { error: "invalid_session" });
       const sessionId = `bs_${randomBytes(18).toString("base64url")}`;
       const descriptor: BrowserSessionDescriptor = {
         version: BROWSER_SESSION_VERSION,
@@ -148,16 +169,23 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
         },
       });
       actors.set(sessionId, actor);
-      const sourceConnection = issueConnection(request, tickets.issue({
-        role: "source",
-        sessionId,
-        principalId: principal.id,
-      }), "source", "binary-jpeg");
+      const sourceConnection = issueConnection(
+        request,
+        tickets.issue({
+          role: "source",
+          sessionId,
+          principalId: principal.id,
+        }),
+        "source",
+        "binary-jpeg",
+      );
       json(response, 201, { session: descriptor, sourceConnection });
       return;
     }
 
-    const sourceMatch = url.pathname.match(/^\/v1\/sessions\/([^/]+)\/source-connections$/);
+    const sourceMatch = /^\/v1\/sessions\/([^/]+)\/source-connections$/.exec(
+      url.pathname,
+    );
     if (request.method === "POST" && sourceMatch) {
       const sessionId = decodeURIComponent(sourceMatch[1] ?? "");
       const actor = actors.get(sessionId);
@@ -166,19 +194,26 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
         return json(response, 410, { error: "session_ended" });
       }
       const principal = await options.authenticate(request, "source:connect");
-      if (!principal || principal.id !== actor.producer.id) {
+      if (principal?.id !== actor.producer.id) {
         return json(response, 403, { error: "forbidden" });
       }
-      const sourceConnection = issueConnection(request, tickets.issue({
-        role: "source",
-        sessionId,
-        principalId: principal.id,
-      }), "source", "binary-jpeg");
+      const sourceConnection = issueConnection(
+        request,
+        tickets.issue({
+          role: "source",
+          sessionId,
+          principalId: principal.id,
+        }),
+        "source",
+        "binary-jpeg",
+      );
       json(response, 200, { session: actor.descriptor, sourceConnection });
       return;
     }
 
-    const viewerMatch = url.pathname.match(/^\/v1\/sessions\/([^/]+)\/connections$/);
+    const viewerMatch = /^\/v1\/sessions\/([^/]+)\/connections$/.exec(
+      url.pathname,
+    );
     if (request.method === "POST" && viewerMatch) {
       const sessionId = decodeURIComponent(viewerMatch[1] ?? "");
       const actor = actors.get(sessionId);
@@ -188,8 +223,14 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
       }
       const principal = await options.authenticate(request, "viewer:observe");
       if (!principal) return json(response, 401, { error: "unauthorized" });
-      const body = await readJson<Record<string, unknown>>(request, maximumRequestBytes);
-      if (body.intent !== "observe" || !validClientInstanceId(body.clientInstanceId)) {
+      const body = await readJson<Record<string, unknown>>(
+        request,
+        maximumRequestBytes,
+      );
+      if (
+        body.intent !== "observe" ||
+        !validClientInstanceId(body.clientInstanceId)
+      ) {
         return json(response, 400, { error: "invalid_connection_request" });
       }
       const allowed = await options.authorize({
@@ -200,18 +241,24 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
       });
       if (!allowed) return json(response, 403, { error: "forbidden" });
       const capabilities: BrowserSessionCapability[] = ["observe"];
-      if (await options.authorize({
-        principal,
-        session: actor.descriptor,
-        producer: actor.producer,
-        capability: "control",
-      })) capabilities.push("control");
-      if (await options.authorize({
-        principal,
-        session: actor.descriptor,
-        producer: actor.producer,
-        capability: "terminate",
-      })) capabilities.push("terminate");
+      if (
+        await options.authorize({
+          principal,
+          session: actor.descriptor,
+          producer: actor.producer,
+          capability: "control",
+        })
+      )
+        capabilities.push("control");
+      if (
+        await options.authorize({
+          principal,
+          session: actor.descriptor,
+          producer: actor.producer,
+          capability: "terminate",
+        })
+      )
+        capabilities.push("terminate");
       const issued = tickets.issue({
         role: "viewer",
         sessionId,
@@ -238,7 +285,9 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
       return;
     }
 
-    const controlMatch = url.pathname.match(/^\/v1\/sessions\/([^/]+)\/control$/);
+    const controlMatch = /^\/v1\/sessions\/([^/]+)\/control$/.exec(
+      url.pathname,
+    );
     if (request.method === "POST" && controlMatch) {
       const sessionId = decodeURIComponent(controlMatch[1] ?? "");
       const actor = actors.get(sessionId);
@@ -252,21 +301,30 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
         capability: "control",
       });
       if (!allowed) return json(response, 403, { error: "forbidden" });
-      const body = await readJson<Record<string, unknown>>(request, maximumRequestBytes);
+      const body = await readJson<Record<string, unknown>>(
+        request,
+        maximumRequestBytes,
+      );
       if (
         (body.action !== "acquire" && body.action !== "release") ||
         !validClientInstanceId(body.clientInstanceId) ||
         (body.leaseId !== undefined && typeof body.leaseId !== "string")
-      ) return json(response, 400, { error: "invalid_control_request" });
-      const result = body.action === "acquire"
-        ? actor.acquireControl(principal.id, body.clientInstanceId)
-        : actor.releaseControl(principal.id, body.clientInstanceId, body.leaseId);
+      )
+        return json(response, 400, { error: "invalid_control_request" });
+      const result =
+        body.action === "acquire"
+          ? actor.acquireControl(principal.id, body.clientInstanceId)
+          : actor.releaseControl(
+              principal.id,
+              body.clientInstanceId,
+              body.leaseId,
+            );
       if (!result.ok) return json(response, 409, { error: result.error });
       json(response, 200, { access: result.access });
       return;
     }
 
-    const endMatch = url.pathname.match(/^\/v1\/sessions\/([^/]+)\/end$/);
+    const endMatch = /^\/v1\/sessions\/([^/]+)\/end$/.exec(url.pathname);
     if (request.method === "POST" && endMatch) {
       const sessionId = decodeURIComponent(endMatch[1] ?? "");
       const actor = actors.get(sessionId);
@@ -291,14 +349,22 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
     json(response, 404, { error: "not_found" });
   }
 
-  async function handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer) {
+  function handleUpgrade(
+    request: IncomingMessage,
+    socket: Duplex,
+    head: Buffer,
+  ) {
     const url = new URL(request.url ?? "/", "http://gateway.invalid");
-    const role = url.pathname === "/v1/source"
-      ? "source"
-      : url.pathname === "/v1/view" ? "viewer" : null;
+    const role =
+      url.pathname === "/v1/source"
+        ? "source"
+        : url.pathname === "/v1/view"
+          ? "viewer"
+          : null;
     if (!role) return rejectUpgrade(socket, 404);
     const protocols = parseProtocols(request.headers["sec-websocket-protocol"]);
-    if (!protocols.includes(BROWSER_SESSION_PROTOCOL)) return rejectUpgrade(socket, 400);
+    if (!protocols.includes(BROWSER_SESSION_PROTOCOL))
+      return rejectUpgrade(socket, 400);
     const claims = tickets.consume(protocols, role);
     if (!claims) return rejectUpgrade(socket, 401);
     const actor = actors.get(claims.sessionId);
@@ -306,16 +372,17 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
     const selected = role === "source" ? sourceSockets : viewerSockets;
     selected.handleUpgrade(request, socket, head, (webSocket) => {
       if (role === "source") actor.attachSource(webSocket, claims.principalId);
-      else if (claims.clientInstanceId) actor.attachViewer(
-        webSocket,
-        {
-          capabilities: claims.capabilities ?? ["observe"],
-          clientInstanceId: claims.clientInstanceId,
-          principalId: claims.principalId,
-          sensitive: false,
-        },
-        claims.frameEncoding ?? "json-base64",
-      );
+      else if (claims.clientInstanceId)
+        actor.attachViewer(
+          webSocket,
+          {
+            capabilities: claims.capabilities ?? ["observe"],
+            clientInstanceId: claims.clientInstanceId,
+            principalId: claims.principalId,
+            sensitive: false,
+          },
+          claims.frameEncoding ?? "json-base64",
+        );
       else webSocket.close(1008, "Viewer identity is missing");
     });
   }
@@ -330,7 +397,7 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
       viewerSockets.close();
       if (!server.listening) return;
       await new Promise<void>((resolve, reject) => {
-        server.close((error) => error ? reject(error) : resolve());
+        server.close((error) => (error ? reject(error) : resolve()));
       });
     },
   };
@@ -347,7 +414,9 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
     return {
       url: new URL(`/v1/${route}`, socketOrigin).toString(),
       protocols: [
-        ...(frameEncoding === "binary-jpeg" ? [BROWSER_SESSION_BINARY_PROTOCOL] : []),
+        ...(frameEncoding === "binary-jpeg"
+          ? [BROWSER_SESSION_BINARY_PROTOCOL]
+          : []),
         BROWSER_SESSION_PROTOCOL,
         issued.protocol,
       ],
@@ -362,8 +431,11 @@ function websocketServer(maxPayload: number): WebSocketServer {
     noServer: true,
     maxPayload,
     handleProtocols(protocols) {
-      if (protocols.has(BROWSER_SESSION_BINARY_PROTOCOL)) return BROWSER_SESSION_BINARY_PROTOCOL;
-      return protocols.has(BROWSER_SESSION_PROTOCOL) ? BROWSER_SESSION_PROTOCOL : false;
+      if (protocols.has(BROWSER_SESSION_BINARY_PROTOCOL))
+        return BROWSER_SESSION_BINARY_PROTOCOL;
+      return protocols.has(BROWSER_SESSION_PROTOCOL)
+        ? BROWSER_SESSION_PROTOCOL
+        : false;
     },
   });
 }
@@ -372,9 +444,13 @@ function resolvePublicOrigin(
   configured: BrowserSessionGatewayOptions["publicOrigin"],
   request: IncomingMessage,
 ): string {
-  const value = typeof configured === "function" ? configured(request) : configured;
+  const value =
+    typeof configured === "function" ? configured(request) : configured;
   const url = new URL(value);
-  if ((url.protocol !== "http:" && url.protocol !== "https:") || url.pathname !== "/") {
+  if (
+    (url.protocol !== "http:" && url.protocol !== "https:") ||
+    url.pathname !== "/"
+  ) {
     throw new Error("publicOrigin must be a canonical HTTP(S) origin.");
   }
   return url.origin;
@@ -386,7 +462,9 @@ function canonicalHttpOrigin(value: string): string {
     (url.protocol !== "http:" && url.protocol !== "https:") ||
     url.origin !== value.replace(/\/$/, "")
   ) {
-    throw new Error("allowedRequestOrigins must contain canonical HTTP(S) origins.");
+    throw new Error(
+      "allowedRequestOrigins must contain canonical HTTP(S) origins.",
+    );
   }
   return url.origin;
 }
@@ -406,7 +484,10 @@ function applyCorsHeaders(
 ) {
   response.setHeader("access-control-allow-origin", origin);
   response.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
-  response.setHeader("access-control-allow-headers", "authorization, content-type");
+  response.setHeader(
+    "access-control-allow-headers",
+    "authorization, content-type",
+  );
   response.setHeader("access-control-max-age", "600");
   response.setHeader("vary", "Origin");
   if (request.headers["access-control-request-private-network"] === "true") {
@@ -414,11 +495,14 @@ function applyCorsHeaders(
   }
 }
 
-async function readJson<T>(request: IncomingMessage, maximumBytes: number): Promise<T> {
-  const chunks: Buffer[] = [];
+async function readJson<T>(
+  request: IncomingMessage,
+  maximumBytes: number,
+): Promise<T> {
+  const chunks: Uint8Array[] = [];
   let size = 0;
   for await (const chunk of request) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    const buffer = Buffer.from(chunk as Uint8Array);
     size += buffer.length;
     if (size > maximumBytes) throw new Error("Request body is too large.");
     chunks.push(buffer);
@@ -427,14 +511,26 @@ async function readJson<T>(request: IncomingMessage, maximumBytes: number): Prom
 }
 
 function validCreateSession(value: unknown): value is CreateSessionBody {
-  if (!isRecord(value) || typeof value.title !== "string" || value.title.length < 1 || value.title.length > 160) {
+  if (
+    !isRecord(value) ||
+    typeof value.title !== "string" ||
+    value.title.length < 1 ||
+    value.title.length > 160
+  ) {
     return false;
   }
-  if (!isRecord(value.viewport) || !dimension(value.viewport.width) || !dimension(value.viewport.height)) {
+  if (
+    !isRecord(value.viewport) ||
+    !dimension(value.viewport.width) ||
+    !dimension(value.viewport.height)
+  ) {
     return false;
   }
-  return value.expiresAt === undefined ||
-    (typeof value.expiresAt === "string" && Number.isFinite(Date.parse(value.expiresAt)));
+  return (
+    value.expiresAt === undefined ||
+    (typeof value.expiresAt === "string" &&
+      Number.isFinite(Date.parse(value.expiresAt)))
+  );
 }
 
 function validClientInstanceId(value: unknown): value is string {
@@ -442,22 +538,33 @@ function validClientInstanceId(value: unknown): value is string {
 }
 
 function selectFrameEncoding(value: unknown): BrowserSessionFrameEncoding {
-  if (Array.isArray(value) && value.includes("binary-jpeg")) return "binary-jpeg";
+  if (Array.isArray(value) && value.includes("binary-jpeg"))
+    return "binary-jpeg";
   return "json-base64";
 }
 
 function dimension(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 8192;
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value > 0 &&
+    value <= 8192
+  );
 }
 
 function parseProtocols(value: string | string[] | undefined): string[] {
-  const joined = Array.isArray(value) ? value.join(",") : value ?? "";
-  return joined.split(",").map((protocol) => protocol.trim()).filter(Boolean);
+  const joined = Array.isArray(value) ? value.join(",") : (value ?? "");
+  return joined
+    .split(",")
+    .map((protocol) => protocol.trim())
+    .filter(Boolean);
 }
 
 function rejectUpgrade(socket: Duplex, status: number) {
   if (socket.destroyed) return;
-  socket.end(`HTTP/1.1 ${status} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+  socket.end(
+    `HTTP/1.1 ${status} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
+  );
 }
 
 function json(response: ServerResponse, status: number, body: unknown) {

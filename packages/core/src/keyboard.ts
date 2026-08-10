@@ -57,9 +57,12 @@ export function browserKeyboardInput(
   eventType: AgentBrowserKeyboardInput["eventType"],
 ): AgentBrowserKeyboardInput {
   const info = KEY_INFO[event.key];
-  const text = eventType === "keyDown"
-    ? (info?.text ?? (event.key.length === 1 ? event.key : undefined))
-    : eventType === "char" ? event.key : undefined;
+  const text =
+    eventType === "keyDown"
+      ? (info?.text ?? (event.key.length === 1 ? event.key : undefined))
+      : eventType === "char"
+        ? event.key
+        : undefined;
   return {
     type: "input_keyboard",
     eventType,

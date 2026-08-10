@@ -1,19 +1,57 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { AgentBrowserViewport, type AgentBrowserViewportProps, type BrowserViewportSize } from "./agent-browser-viewport";
-import { BrowserOperatingOverlay } from "./operating-overlay";
+import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import type {
+  BrowserAgentActivity,
+  BrowserSessionAccess,
+  BrowserViewportStatus,
+} from "@browser-ui/core";
+
+import type {
+  AgentBrowserViewportProps,
+  BrowserViewportSize,
+} from "./agent-browser-viewport";
+import type { BrowserAgentCursorState } from "./agent-cursor";
+import type { BrowserRootProps } from "./browser-root";
 import type { BrowserOperatingShaderOptions } from "./operating-shader";
-import { BrowserDisplayControls, BrowserEndSessionTrigger, BrowserFullscreenTrigger, BrowserPictureInPictureTrigger } from "./browser-display";
-import { BrowserRoot, type BrowserRootProps } from "./browser-root";
+import { AgentBrowserViewport } from "./agent-browser-viewport";
+import { BrowserAgentCursor } from "./agent-cursor";
+import {
+  BrowserDisplayControls,
+  BrowserEndSessionTrigger,
+  BrowserFullscreenTrigger,
+  BrowserPictureInPictureTrigger,
+} from "./browser-display";
+import { BrowserRoot } from "./browser-root";
 import { BrowserLoading, BrowserSurface } from "./browser-surface";
 import { BrowserToolbar } from "./browser-toolbar";
-import { BrowserAgentCursor, type BrowserAgentCursorState } from "./agent-cursor";
-import type { BrowserAgentActivity, BrowserSessionAccess, BrowserViewportStatus } from "@browser-ui/core";
+import { BrowserOperatingOverlay } from "./operating-overlay";
 
 const agentCursorIdleTimeoutMs = 4_000;
 
-export interface BrowserProps extends Pick<BrowserRootProps, "className" | "colorScheme" | "defaultMode" | "fullscreenTarget" | "mode" | "onModeChange" | "style" | "variant">, Pick<AgentBrowserViewportProps, "ariaLabel" | "createWebSocket" | "onViewportResize" | "protocols" | "resolveConnection"> {
+export interface BrowserProps
+  extends
+    Pick<
+      BrowserRootProps,
+      | "className"
+      | "colorScheme"
+      | "defaultMode"
+      | "fullscreenTarget"
+      | "mode"
+      | "onModeChange"
+      | "style"
+      | "variant"
+    >,
+    Pick<
+      AgentBrowserViewportProps,
+      | "ariaLabel"
+      | "createWebSocket"
+      | "onViewportResize"
+      | "protocols"
+      | "resolveConnection"
+    > {
   /** WebSocket URL returned by `agent-browser stream status`. */
   streamUrl?: string;
   /** Host-projected access state. Input requires the viewer's active lease. */
@@ -96,17 +134,32 @@ export function AgentBrowser({
 }: BrowserProps) {
   const [status, setStatus] = useState<BrowserViewportStatus>("connecting");
   const [draftUrl, setDraftUrl] = useState(url);
+  const [previousUrl, setPreviousUrl] = useState(url);
   const [activity, setActivity] = useState<BrowserAgentActivity | null>(null);
-  const [lastActivity, setLastActivity] = useState<BrowserAgentActivity | null>(null);
-  const [liveAgentCursor, setLiveAgentCursor] = useState<BrowserAgentCursorState | null>(null);
-  const agentCursorIdleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => { setDraftUrl(url); }, [url]);
-  useEffect(() => {
-    if (!operating && activity === null) setLastActivity(null);
-  }, [activity, operating]);
-  useEffect(() => () => {
-    if (agentCursorIdleTimer.current) clearTimeout(agentCursorIdleTimer.current);
-  }, []);
+  const [lastActivity, setLastActivity] = useState<BrowserAgentActivity | null>(
+    null,
+  );
+  const [liveAgentCursor, setLiveAgentCursor] =
+    useState<BrowserAgentCursorState | null>(null);
+  const agentCursorIdleTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  if (previousUrl !== url) {
+    setPreviousUrl(url);
+    setDraftUrl(url);
+  }
+  const [previousOperating, setPreviousOperating] = useState(operating);
+  if (previousOperating !== operating) {
+    setPreviousOperating(operating);
+    if (!operating) setLastActivity(null);
+  }
+  useEffect(
+    () => () => {
+      if (agentCursorIdleTimer.current)
+        clearTimeout(agentCursorIdleTimer.current);
+    },
+    [],
+  );
 
   const handleStatusChange = (next: BrowserViewportStatus) => {
     setStatus(next);
@@ -120,11 +173,14 @@ export function AgentBrowser({
     setActivity(next);
     if (next) setLastActivity(next);
     if (next?.agentCursor) {
-      if (agentCursorIdleTimer.current) clearTimeout(agentCursorIdleTimer.current);
+      if (agentCursorIdleTimer.current)
+        clearTimeout(agentCursorIdleTimer.current);
       setLiveAgentCursor(next.agentCursor);
       if (next.agentCursor.visible !== false) {
         agentCursorIdleTimer.current = setTimeout(() => {
-          setLiveAgentCursor((cursor) => cursor ? { ...cursor, visible: false } : null);
+          setLiveAgentCursor((cursor) =>
+            cursor ? { ...cursor, visible: false } : null,
+          );
           agentCursorIdleTimer.current = null;
         }, agentCursorIdleTimeoutMs);
       }
@@ -132,71 +188,107 @@ export function AgentBrowser({
     onActivityChange?.(next);
   };
   const activelyOperating = operating || activity !== null;
-  const activeOperatingLabel = activity?.label
-    ?? (operating ? lastActivity?.label : undefined)
-    ?? operatingLabel;
+  const activeOperatingLabel =
+    activity?.label ??
+    (operating ? lastActivity?.label : undefined) ??
+    operatingLabel;
   const activeAgentCursor = agentCursor ?? liveAgentCursor ?? undefined;
   const loading = status !== "connected";
-  const loadingCopy = status === "error"
-    ? "Browser connection failed"
-    : status === "disconnected" ? "Reconnecting browser" : loadingLabel;
-  const viewportAspectRatio = viewportSize && viewportSize.height > 0
-    ? viewportSize.width / viewportSize.height
-    : 1.6;
+  const loadingCopy =
+    status === "error"
+      ? "Browser connection failed"
+      : status === "disconnected"
+        ? "Reconnecting browser"
+        : loadingLabel;
+  const viewportAspectRatio =
+    viewportSize && viewportSize.height > 0
+      ? viewportSize.width / viewportSize.height
+      : 1.6;
   const surfaceStyle = {
     "--bui-fullscreen-surface-width": `min(80vw, calc(80dvh * ${viewportAspectRatio}))`,
     aspectRatio: displayAspectRatio ?? viewportAspectRatio,
   } as CSSProperties;
   const rootStyle = {
     ...style,
-    "--bui-browser-aspect-ratio": String(displayAspectRatio ?? viewportAspectRatio),
+    "--bui-browser-aspect-ratio": String(
+      displayAspectRatio ?? viewportAspectRatio,
+    ),
   } as CSSProperties;
 
-  return <BrowserRoot
-    className={className}
-    colorScheme={colorScheme}
-    defaultMode={defaultMode}
-    fullscreenTarget={fullscreenTarget}
-    mode={mode}
-    onModeChange={onModeChange}
-    style={rootStyle}
-    variant={variant}
-  >
-    {showControls ? <BrowserToolbar value={draftUrl} onValueChange={setDraftUrl} onNavigate={onNavigate} onReload={onReload} /> : null}
-    <BrowserSurface
-      className="bui-browser-surface"
-      style={surfaceStyle}
-      loading={loading}
-      loadingFallback={<BrowserLoading label={loadingCopy} />}
-      overlay={<>
-        {activelyOperating ? <BrowserOperatingOverlay label={activeOperatingLabel} onTakeControl={onTakeControl} shader={operatingShader} /> : null}
-        {activeAgentCursor ? <BrowserAgentCursor {...activeAgentCursor} /> : null}
-      </>}
+  return (
+    <BrowserRoot
+      className={className}
+      colorScheme={colorScheme}
+      defaultMode={defaultMode}
+      fullscreenTarget={fullscreenTarget}
+      mode={mode}
+      onModeChange={onModeChange}
+      style={rootStyle}
+      variant={variant}
     >
-      <AgentBrowserViewport
-        access={access}
-        streamUrl={streamUrl}
-        protocols={protocols}
-        resolveConnection={resolveConnection}
-        createWebSocket={createWebSocket}
-        ariaLabel={ariaLabel}
-        className={viewportClassName}
-        interactive={interactive && !activelyOperating}
-        onActivityChange={handleActivityChange}
-        onInteractionIntent={onInteractionIntent}
-        viewportSize={viewportSize}
-        onStatusChange={handleStatusChange}
-        onUrlChange={handleUrlChange}
-        onViewportResize={onViewportResize}
-      />
-      {showPictureInPicture || showFullscreen || displayControls || onEndSession ? <BrowserDisplayControls className={displayControlsClassName}>
-        {displayControls}
-        {showPictureInPicture ? <BrowserPictureInPictureTrigger /> : null}
-        {showFullscreen ? <BrowserFullscreenTrigger /> : null}
-        {onEndSession ? <BrowserEndSessionTrigger endLabel={endSessionLabel} onEndSession={onEndSession} /> : null}
-      </BrowserDisplayControls> : null}
-    </BrowserSurface>
-  </BrowserRoot>;
+      {showControls ? (
+        <BrowserToolbar
+          value={draftUrl}
+          onValueChange={setDraftUrl}
+          onNavigate={onNavigate}
+          onReload={onReload}
+        />
+      ) : null}
+      <BrowserSurface
+        className="bui-browser-surface"
+        style={surfaceStyle}
+        loading={loading}
+        loadingFallback={<BrowserLoading label={loadingCopy} />}
+        overlay={
+          <>
+            {activelyOperating ? (
+              <BrowserOperatingOverlay
+                label={activeOperatingLabel}
+                onTakeControl={onTakeControl}
+                shader={operatingShader}
+              />
+            ) : null}
+            {activeAgentCursor ? (
+              <BrowserAgentCursor {...activeAgentCursor} />
+            ) : null}
+          </>
+        }
+      >
+        <AgentBrowserViewport
+          access={access}
+          streamUrl={streamUrl}
+          protocols={protocols}
+          resolveConnection={resolveConnection}
+          createWebSocket={createWebSocket}
+          ariaLabel={ariaLabel}
+          className={viewportClassName}
+          interactive={interactive && !activelyOperating}
+          onActivityChange={handleActivityChange}
+          onInteractionIntent={onInteractionIntent}
+          viewportSize={viewportSize}
+          onStatusChange={handleStatusChange}
+          onUrlChange={handleUrlChange}
+          onViewportResize={onViewportResize}
+        />
+        {showPictureInPicture ||
+        showFullscreen ||
+        displayControls ||
+        onEndSession ? (
+          <BrowserDisplayControls className={displayControlsClassName}>
+            {displayControls}
+            {showPictureInPicture ? <BrowserPictureInPictureTrigger /> : null}
+            {showFullscreen ? <BrowserFullscreenTrigger /> : null}
+            {onEndSession ? (
+              <BrowserEndSessionTrigger
+                endLabel={endSessionLabel}
+                onEndSession={onEndSession}
+              />
+            ) : null}
+          </BrowserDisplayControls>
+        ) : null}
+      </BrowserSurface>
+    </BrowserRoot>
+  );
 }
 
 /** Backward-compatible concise name for the agent-browser stream viewer. */

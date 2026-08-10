@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { relayAgentBrowserSession } from "./relay.js";
 
 if (process.argv.includes("--help")) {
@@ -26,7 +26,8 @@ if (process.argv.includes("--version")) {
   const packageJson = JSON.parse(
     await readFile(new URL("../../package.json", import.meta.url), "utf8"),
   ) as { version?: unknown };
-  if (typeof packageJson.version !== "string") throw new Error("Could not read the gateway package version.");
+  if (typeof packageJson.version !== "string")
+    throw new Error("Could not read the gateway package version.");
   process.stdout.write(`${packageJson.version}\n`);
   process.exit(0);
 }
@@ -39,16 +40,19 @@ if (!process.argv.includes("--foreground")) {
 }
 
 const gatewayOrigin = required("BROWSER_UI_GATEWAY_ORIGIN");
-const publicOrigin =
-  process.env.BROWSER_UI_PUBLIC_ORIGIN?.trim() || gatewayOrigin;
+const configuredPublicOrigin = process.env.BROWSER_UI_PUBLIC_ORIGIN?.trim();
+let publicOrigin = gatewayOrigin;
+if (configuredPublicOrigin) publicOrigin = configuredPublicOrigin;
 const streamUrl = required("AGENT_BROWSER_STREAM_URL");
 const sourceToken = required("BROWSER_UI_SOURCE_TOKEN");
 const title = process.env.BROWSER_UI_SESSION_TITLE ?? "Agent browser session";
 const width = integer("BROWSER_UI_VIEWPORT_WIDTH", 1280);
 const height = integer("BROWSER_UI_VIEWPORT_HEIGHT", 800);
 const agentBrowserCli = process.env.BROWSER_UI_AGENT_BROWSER_CLI?.trim();
-const agentBrowserNamespace = process.env.BROWSER_UI_AGENT_BROWSER_NAMESPACE?.trim();
-const agentBrowserSession = process.env.BROWSER_UI_AGENT_BROWSER_SESSION?.trim();
+const agentBrowserNamespace =
+  process.env.BROWSER_UI_AGENT_BROWSER_NAMESPACE?.trim();
+const agentBrowserSession =
+  process.env.BROWSER_UI_AGENT_BROWSER_SESSION?.trim();
 const navigationConfigured =
   agentBrowserCli && agentBrowserNamespace && agentBrowserSession;
 
@@ -59,12 +63,13 @@ const source = await relayAgentBrowserSession({
   viewport: { width, height },
   authorize: () => ({ authorization: `Bearer ${sourceToken}` }),
   navigate: navigationConfigured
-    ? (direction) => runAgentBrowserNavigation(
-        agentBrowserCli,
-        agentBrowserNamespace,
-        agentBrowserSession,
-        direction,
-      )
+    ? (direction) =>
+        runAgentBrowserNavigation(
+          agentBrowserCli,
+          agentBrowserNamespace,
+          agentBrowserSession,
+          direction,
+        )
     : undefined,
 });
 
@@ -92,19 +97,24 @@ async function launchDetachedSource(): Promise<void> {
     return;
   }
 
-  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), "--foreground"], {
-    detached: true,
-    env: process.env,
-    stdio: ["ignore", "pipe", "ignore"],
-  });
+  const child = spawn(
+    process.execPath,
+    [fileURLToPath(import.meta.url), "--foreground"],
+    {
+      detached: true,
+      env: process.env,
+      stdio: ["ignore", "pipe", "ignore"],
+    },
+  );
   const stdout = child.stdout;
-  if (!stdout) throw new Error("Could not capture detached source output.");
 
   const descriptor = await new Promise<string>((resolve, reject) => {
     let output = "";
     const timeout = setTimeout(() => {
       cleanup();
-      reject(new Error("Timed out waiting for the detached source descriptor."));
+      reject(
+        new Error("Timed out waiting for the detached source descriptor."),
+      );
     }, 10_000);
     const cleanup = () => {
       clearTimeout(timeout);
@@ -118,7 +128,11 @@ async function launchDetachedSource(): Promise<void> {
     };
     const onExit = (code: number | null) => {
       cleanup();
-      reject(new Error(`Detached source exited before startup (code ${code ?? "unknown"}).`));
+      reject(
+        new Error(
+          `Detached source exited before startup (code ${code ?? "unknown"}).`,
+        ),
+      );
     };
     const onData = (chunk: Buffer) => {
       output += chunk.toString("utf8");
@@ -133,7 +147,8 @@ async function launchDetachedSource(): Promise<void> {
   });
 
   const payload = JSON.parse(descriptor) as { version?: unknown };
-  if (payload.version !== 2) throw new Error("Detached source returned an invalid descriptor.");
+  if (payload.version !== 2)
+    throw new Error("Detached source returned an invalid descriptor.");
   stdout.destroy();
   child.unref();
   process.stdout.write(`${descriptor}\n`);
@@ -145,48 +160,60 @@ async function launchWithLaunchd(): Promise<string> {
   const errorFile = join(directory, "error.log");
   const configFile = join(directory, "launch.json");
   const label = `com.browser-ui.source.${randomUUID()}`;
-  const launchEnvironment = Object.fromEntries([
-    "AGENT_BROWSER_STREAM_URL",
-    "BROWSER_UI_GATEWAY_ORIGIN",
-    "BROWSER_UI_PUBLIC_ORIGIN",
-    "BROWSER_UI_SOURCE_TOKEN",
-    "BROWSER_UI_SESSION_TITLE",
-    "BROWSER_UI_VIEWPORT_WIDTH",
-    "BROWSER_UI_VIEWPORT_HEIGHT",
-    "BROWSER_UI_AGENT_BROWSER_CLI",
-    "BROWSER_UI_AGENT_BROWSER_NAMESPACE",
-    "BROWSER_UI_AGENT_BROWSER_SESSION",
-  ].flatMap((name) => process.env[name] ? [[name, process.env[name]]] : []));
-  await writeFile(configFile, JSON.stringify({
-    environment: {
-      ...launchEnvironment,
-      BROWSER_UI_SOURCE_DESCRIPTOR_FILE: descriptorFile,
-    },
-  }), { encoding: "utf8", mode: 0o600 });
-  const submitted = spawn("/bin/launchctl", [
-    "submit",
-    "-l",
-    label,
-    "-o",
-    "/dev/null",
-    "-e",
-    errorFile,
-    "--",
-    process.execPath,
-    fileURLToPath(import.meta.url),
-    "--launch-config",
+  const launchEnvironment = Object.fromEntries(
+    [
+      "AGENT_BROWSER_STREAM_URL",
+      "BROWSER_UI_GATEWAY_ORIGIN",
+      "BROWSER_UI_PUBLIC_ORIGIN",
+      "BROWSER_UI_SOURCE_TOKEN",
+      "BROWSER_UI_SESSION_TITLE",
+      "BROWSER_UI_VIEWPORT_WIDTH",
+      "BROWSER_UI_VIEWPORT_HEIGHT",
+      "BROWSER_UI_AGENT_BROWSER_CLI",
+      "BROWSER_UI_AGENT_BROWSER_NAMESPACE",
+      "BROWSER_UI_AGENT_BROWSER_SESSION",
+    ].flatMap((name) => (process.env[name] ? [[name, process.env[name]]] : [])),
+  );
+  await writeFile(
     configFile,
-    "--foreground",
-  ], {
-    stdio: "ignore",
-  });
+    JSON.stringify({
+      environment: {
+        ...launchEnvironment,
+        BROWSER_UI_SOURCE_DESCRIPTOR_FILE: descriptorFile,
+      },
+    }),
+    { encoding: "utf8", mode: 0o600 },
+  );
+  const submitted = spawn(
+    "/bin/launchctl",
+    [
+      "submit",
+      "-l",
+      label,
+      "-o",
+      "/dev/null",
+      "-e",
+      errorFile,
+      "--",
+      process.execPath,
+      fileURLToPath(import.meta.url),
+      "--launch-config",
+      configFile,
+      "--foreground",
+    ],
+    {
+      stdio: "ignore",
+    },
+  );
   const submittedCode = await new Promise<number | null>((resolve, reject) => {
     submitted.once("error", reject);
     submitted.once("exit", resolve);
   });
   if (submittedCode !== 0) {
     await rm(directory, { force: true, recursive: true });
-    throw new Error(`launchctl could not start the source worker (code ${submittedCode ?? "unknown"}).`);
+    throw new Error(
+      `launchctl could not start the source worker (code ${submittedCode ?? "unknown"}).`,
+    );
   }
 
   try {
@@ -200,7 +227,8 @@ async function launchWithLaunchd(): Promise<string> {
       );
     }
     const payload = JSON.parse(descriptor) as { version?: unknown };
-    if (payload.version !== 2) throw new Error("Detached source returned an invalid descriptor.");
+    if (payload.version !== 2)
+      throw new Error("Detached source returned an invalid descriptor.");
     return descriptor;
   } finally {
     await rm(directory, { force: true, recursive: true });
@@ -214,14 +242,11 @@ async function runAgentBrowserNavigation(
   direction: "back" | "forward",
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(executable, [
-      "--namespace",
-      namespace,
-      "--session",
-      session,
-      "--json",
-      direction,
-    ], { stdio: "ignore" });
+    const child = spawn(
+      executable,
+      ["--namespace", namespace, "--session", session, "--json", direction],
+      { stdio: "ignore" },
+    );
     const timeout = setTimeout(() => {
       child.kill("SIGTERM");
       reject(new Error(`agent-browser ${direction} timed out.`));
@@ -233,7 +258,12 @@ async function runAgentBrowserNavigation(
     child.once("exit", (code) => {
       clearTimeout(timeout);
       if (code === 0) resolve();
-      else reject(new Error(`agent-browser ${direction} exited with code ${code ?? "unknown"}.`));
+      else
+        reject(
+          new Error(
+            `agent-browser ${direction} exited with code ${code ?? "unknown"}.`,
+          ),
+        );
     });
   });
 }
@@ -259,7 +289,11 @@ async function waitForDescriptor(path: string): Promise<string> {
       const descriptor = (await readFile(path, "utf8")).trim();
       if (descriptor) return descriptor;
     } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+      if (!(
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ENOENT"
+      )) {
         throw error;
       }
     }

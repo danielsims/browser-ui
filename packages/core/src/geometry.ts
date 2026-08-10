@@ -9,7 +9,10 @@ export interface BrowserViewportPoint {
 }
 
 /** Preview uses the agent's stable canvas; takeover uses the viewer device bounds. */
-export const browserViewportPresentationModes = ["preview", "takeover"] as const;
+export const browserViewportPresentationModes = [
+  "preview",
+  "takeover",
+] as const;
 export type BrowserViewportPresentationMode =
   (typeof browserViewportPresentationModes)[number];
 

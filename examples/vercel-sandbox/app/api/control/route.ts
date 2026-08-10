@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as {
+    const body = (await request.json()) as {
       action?: unknown;
       clientInstanceId?: unknown;
       key?: unknown;
@@ -53,18 +53,22 @@ export async function POST(request: Request) {
         ...(typeof body.leaseId === "string" ? { leaseId: body.leaseId } : {}),
       },
     );
-    const result = await response.json() as {
+    const result = (await response.json()) as {
       access?: { lease?: { id?: string } };
       error?: string;
     };
     if (response.ok && body.action === "release") {
       await withSessionLock(sandbox, () => writeMode(sandbox, "agent"));
     }
-    if (!response.ok && body.action === "acquire") await writeMode(sandbox, "agent");
-    return Response.json({
-      ...result,
-      leaseId: result.access?.lease?.id,
-    }, { status: response.status });
+    if (!response.ok && body.action === "acquire")
+      await writeMode(sandbox, "agent");
+    return Response.json(
+      {
+        ...result,
+        leaseId: result.access?.lease?.id,
+      },
+      { status: response.status },
+    );
   } catch (error) {
     return Response.json({ error: message(error) }, { status: 400 });
   }

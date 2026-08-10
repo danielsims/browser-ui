@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import type { StyleProp, ViewStyle } from "react-native";
+import { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -8,13 +10,13 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
-  View,
   useWindowDimensions,
-  type StyleProp,
-  type ViewStyle,
+  View,
 } from "react-native";
-import type { AgentBrowserConnectionStatus } from "./use-agent-browser-stream";
+
 import type { BrowserSessionAccess } from "@browser-ui/core";
+
+import type { AgentBrowserConnectionStatus } from "./use-agent-browser-stream";
 
 export interface BrowserSheetProps {
   access?: BrowserSessionAccess;
@@ -58,19 +60,20 @@ export function BrowserSheet({
   );
   const sheetWidth = Math.min(760, windowWidth);
   const [mounted, setMounted] = useState(visible);
-  const translateY = useRef(new Animated.Value(sheetHeight)).current;
-  const backdropOpacity = useRef(
-    new Animated.Value(closedBackdropOpacity),
-  ).current;
+  const [translateY] = useState(() => new Animated.Value(sheetHeight));
+  const [backdropOpacity] = useState(
+    () => new Animated.Value(closedBackdropOpacity),
+  );
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
   const closingRef = useRef(false);
-  const visibleRef = useRef(visible);
   const sheetHeightRef = useRef(sheetHeight);
+  const visibleRef = useRef(visible);
   const onRequestCloseRef = useRef(onRequestClose);
-  const dismissRef = useRef<() => void>(() => undefined);
-  visibleRef.current = visible;
-  sheetHeightRef.current = sheetHeight;
-  onRequestCloseRef.current = onRequestClose;
+  useEffect(() => {
+    visibleRef.current = visible;
+    sheetHeightRef.current = sheetHeight;
+    onRequestCloseRef.current = onRequestClose;
+  }, [onRequestClose, sheetHeight, visible]);
 
   const stopAnimation = () => {
     animationRef.current?.stop();
@@ -105,7 +108,7 @@ export function BrowserSheet({
       Animated.timing(translateY, {
         duration: 240,
         easing: Easing.in(Easing.cubic),
-        toValue: sheetHeightRef.current,
+        toValue: sheetHeight,
         useNativeDriver: true,
       }),
       Animated.timing(backdropOpacity, {
@@ -134,44 +137,58 @@ export function BrowserSheet({
       });
     });
   };
-  dismissRef.current = dismiss;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) =>
-        gesture.dy > 5 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-      onPanResponderGrant: () => stopAnimation(),
-      onPanResponderMove: (_, gesture) => {
-        const distance = Math.max(0, gesture.dy);
-        translateY.setValue(distance);
-        backdropOpacity.setValue(
-          Math.max(0, 1 - distance / sheetHeightRef.current),
-        );
-      },
-      onPanResponderRelease: (_, gesture) => {
-        const shouldDismiss =
-          gesture.dy > sheetHeightRef.current * 0.2 || gesture.vy > 1.1;
-        if (shouldDismiss) {
-          dismissRef.current();
-          return;
-        }
-        animateOpen();
-      },
-      onPanResponderTerminate: () => animateOpen(),
-    }),
-  ).current;
+  const responderCallbacksRef = useRef({ animateOpen, dismiss, stopAnimation });
+  useEffect(() => {
+    responderCallbacksRef.current = { animateOpen, dismiss, stopAnimation };
+  });
+  const [panResponder, setPanResponder] = useState<ReturnType<
+    typeof PanResponder.create
+  > | null>(null);
+  useEffect(() => {
+    const frameRequest = requestAnimationFrame(() => {
+      setPanResponder(
+        PanResponder.create({
+          onMoveShouldSetPanResponder: (_, gesture) =>
+            gesture.dy > 5 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+          onPanResponderGrant: () =>
+            responderCallbacksRef.current.stopAnimation(),
+          onPanResponderMove: (_, gesture) => {
+            const distance = Math.max(0, gesture.dy);
+            translateY.setValue(distance);
+            backdropOpacity.setValue(
+              Math.max(0, 1 - distance / sheetHeightRef.current),
+            );
+          },
+          onPanResponderRelease: (_, gesture) => {
+            const shouldDismiss =
+              gesture.dy > sheetHeightRef.current * 0.2 || gesture.vy > 1.1;
+            if (shouldDismiss) {
+              responderCallbacksRef.current.dismiss();
+              return;
+            }
+            responderCallbacksRef.current.animateOpen();
+          },
+          onPanResponderTerminate: () =>
+            responderCallbacksRef.current.animateOpen(),
+        }),
+      );
+    });
+    return () => cancelAnimationFrame(frameRequest);
+  }, [backdropOpacity, translateY]);
 
   useEffect(() => {
     let frameRequest: number | null = null;
     if (visible) {
-      setMounted(true);
-      translateY.setValue(sheetHeight);
-      backdropOpacity.setValue(closedBackdropOpacity);
-      frameRequest = requestAnimationFrame(animateOpen);
+      frameRequest = requestAnimationFrame(() => {
+        setMounted(true);
+        translateY.setValue(sheetHeight);
+        backdropOpacity.setValue(closedBackdropOpacity);
+        animateOpen();
+      });
     } else if (mounted) {
       if (closingRef.current) {
         closingRef.current = false;
-        setMounted(false);
+        frameRequest = requestAnimationFrame(() => setMounted(false));
       } else {
         animateClosed(() => {
           if (!visibleRef.current) setMounted(false);
@@ -223,7 +240,7 @@ export function BrowserSheet({
           ]}
         >
           <SafeAreaView style={styles.safeArea}>
-            <View {...panResponder.panHandlers} style={styles.chrome}>
+            <View {...(panResponder?.panHandlers ?? {})} style={styles.chrome}>
               <View style={styles.handle} />
               <View style={styles.toolbar}>
                 <View style={styles.titleBlock}>

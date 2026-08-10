@@ -76,12 +76,12 @@ Recommended defaults:
 
 Browser UI uses four gateway-enforced capabilities:
 
-| Capability | Meaning |
-| --- | --- |
-| `observe` | Receive frames and non-sensitive session metadata. |
-| `control` | Request and renew an exclusive input lease. |
-| `manage` | Grant, revoke, or preempt another controller. |
-| `terminate` | End the underlying browser session. |
+| Capability  | Meaning                                            |
+| ----------- | -------------------------------------------------- |
+| `observe`   | Receive frames and non-sensitive session metadata. |
+| `control`   | Request and renew an exclusive input lease.        |
+| `manage`    | Grant, revoke, or preempt another controller.      |
+| `terminate` | End the underlying browser session.                |
 
 Client-side state is never sufficient authorization. A gateway must reject
 every input message unless its connection currently owns a valid control lease.

@@ -1,22 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef } from "react";
+
 import type {
   AgentBrowserFrameMetadata,
   BrowserAgentActivity,
   BrowserSessionAccess,
+  BrowserSessionConnection,
   BrowserViewportSize,
   BrowserViewportStatus,
 } from "@browser-ui/core";
 import {
   browserKeyboardInput,
+  canSendBrowserInput,
+  decodeBrowserSessionBinaryFrame,
   describeAgentBrowserCommand,
   mapContainedPointToViewport,
   parseAgentBrowserMessage,
-  canSendBrowserInput,
 } from "@browser-ui/core";
-import { decodeBrowserSessionBinaryFrame, type BrowserSessionConnection } from "@browser-ui/core";
 
 export type { BrowserViewportSize } from "@browser-ui/core";
 
@@ -30,9 +32,14 @@ export interface AgentBrowserViewportProps {
   /** Optional WebSocket subprotocols, commonly used for short-lived session tickets. */
   protocols?: string | string[];
   /** Advanced host hook for cookie, ticket, proxy, or test-specific sockets. */
-  createWebSocket?: (streamUrl: string, protocols?: string | string[]) => WebSocket;
+  createWebSocket?: (
+    streamUrl: string,
+    protocols?: string | string[],
+  ) => WebSocket;
   /** Resolves a fresh one-time gateway ticket before every connection attempt. */
-  resolveConnection?: () => Promise<Pick<BrowserSessionConnection, "url" | "protocols">>;
+  resolveConnection?: () => Promise<
+    Pick<BrowserSessionConnection, "url" | "protocols">
+  >;
   viewportSize?: BrowserViewportSize;
   onStatusChange?: (status: BrowserViewportStatus) => void;
   /** Reports the current structured browser command without exposing command values. */
@@ -70,25 +77,25 @@ interface PendingViewportFrame {
 
 type PendingInteraction =
   | {
-    kind: "click";
-    input: {
-      button: ActivePointer["button"];
-      clickCount: number;
-      modifiers: number;
-      x: number;
-      y: number;
-    };
-  }
+      kind: "click";
+      input: {
+        button: ActivePointer["button"];
+        clickCount: number;
+        modifiers: number;
+        x: number;
+        y: number;
+      };
+    }
   | {
-    kind: "wheel";
-    input: {
-      deltaX: number;
-      deltaY: number;
-      modifiers: number;
-      x: number;
-      y: number;
+      kind: "wheel";
+      input: {
+        deltaX: number;
+        deltaY: number;
+        modifiers: number;
+        x: number;
+        y: number;
+      };
     };
-  };
 
 type LegacyWheelEvent = WheelEvent & {
   wheelDelta?: number;
@@ -96,9 +103,18 @@ type LegacyWheelEvent = WheelEvent & {
   wheelDeltaY?: number;
 };
 
-function modifiers(event: { altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) {
-  return (event.altKey ? 1 : 0) | (event.ctrlKey ? 2 : 0)
-    | (event.metaKey ? 4 : 0) | (event.shiftKey ? 8 : 0);
+function modifiers(event: {
+  altKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+}) {
+  return (
+    (event.altKey ? 1 : 0) |
+    (event.ctrlKey ? 2 : 0) |
+    (event.metaKey ? 4 : 0) |
+    (event.shiftKey ? 8 : 0)
+  );
 }
 
 function wheelDeltas(event: LegacyWheelEvent, pageHeight: number) {
@@ -107,9 +123,12 @@ function wheelDeltas(event: LegacyWheelEvent, pageHeight: number) {
   const rawY = legacy
     ? -(event.wheelDeltaY ?? event.wheelDelta ?? 0)
     : event.deltaY;
-  const factor = event.deltaMode === WheelEvent.DOM_DELTA_LINE
-    ? 16
-    : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? pageHeight : 1;
+  const factor =
+    event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? 16
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        ? pageHeight
+        : 1;
   return { deltaX: rawX * factor, deltaY: rawY * factor };
 }
 
@@ -150,21 +169,28 @@ export function AgentBrowserViewport({
   const activityIdRef = useRef<string | null>(null);
   const urlChangeRef = useRef(onUrlChange);
   const viewportResizeRef = useRef(onViewportResize);
-  interactionIntentRef.current = onInteractionIntent;
-  statusChangeRef.current = onStatusChange;
-  activityChangeRef.current = onActivityChange;
-  urlChangeRef.current = onUrlChange;
-  viewportResizeRef.current = onViewportResize;
-
+  useEffect(() => {
+    interactionIntentRef.current = onInteractionIntent;
+    statusChangeRef.current = onStatusChange;
+    activityChangeRef.current = onActivityChange;
+    urlChangeRef.current = onUrlChange;
+    viewportResizeRef.current = onViewportResize;
+  });
   const send = useCallback((message: unknown) => {
     const socket = socketRef.current;
     if (socket?.readyState !== WebSocket.OPEN) return false;
-    try { socket.send(JSON.stringify(message)); return true; }
-    catch { socket.close(); return false; }
+    try {
+      socket.send(JSON.stringify(message));
+      return true;
+    } catch {
+      socket.close();
+      return false;
+    }
   }, []);
 
   const point = useCallback((clientX: number, clientY: number) => {
-    const element = elementRef.current; const metadata = metadataRef.current;
+    const element = elementRef.current;
+    const metadata = metadataRef.current;
     if (!element || !metadata) return null;
     const rect = element.getBoundingClientRect();
     return mapContainedPointToViewport(
@@ -197,18 +223,25 @@ export function AgentBrowserViewport({
         }
       });
   }, []);
-
   const releaseActivePointer = useCallback(() => {
     const active = activePointerRef.current;
     if (!active) return true;
-    const released = send({ type: "input_mouse", eventType: "mouseReleased", x: active.x, y: active.y,
-      button: active.button, clickCount: active.clickCount, modifiers: active.modifiers });
+    const released = send({
+      type: "input_mouse",
+      eventType: "mouseReleased",
+      x: active.x,
+      y: active.y,
+      button: active.button,
+      clickCount: active.clickCount,
+      modifiers: active.modifiers,
+    });
     if (released) activePointerRef.current = null;
     return released;
   }, [send]);
-
   useEffect(() => {
-    let closed = false; let decoding = false;
+    let closed = false;
+    const connectionClosed = () => closed;
+    let decoding = false;
     let pendingFrame: PendingViewportFrame | null = null;
     let sourceEpoch: string | null = null;
     let lastRemoteFrameSequence = -1;
@@ -217,18 +250,23 @@ export function AgentBrowserViewport({
       decoding = true;
       try {
         while (!closed && pendingFrame) {
-          const message = pendingFrame; pendingFrame = null;
+          const message = pendingFrame;
+          pendingFrame = null;
           let bitmap: ImageBitmap | undefined;
           try {
-            const jpeg = typeof message.data === "string"
-              ? decodeBase64(message.data).buffer
-              : message.data;
-            bitmap = await createImageBitmap(new Blob([jpeg], { type: "image/jpeg" }));
-            if (closed) break;
+            const jpeg =
+              typeof message.data === "string"
+                ? decodeBase64(message.data).buffer
+                : message.data;
+            bitmap = await createImageBitmap(
+              new Blob([jpeg], { type: "image/jpeg" }),
+            );
+            if (connectionClosed()) break;
             const canvas = canvasRef.current;
             if (canvas) {
               if (canvas.width !== bitmap.width) canvas.width = bitmap.width;
-              if (canvas.height !== bitmap.height) canvas.height = bitmap.height;
+              if (canvas.height !== bitmap.height)
+                canvas.height = bitmap.height;
               canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
               metadataRef.current = message.metadata;
               reconnectAttempt = 0;
@@ -240,9 +278,13 @@ export function AgentBrowserViewport({
             bitmap?.close();
           }
         }
-      } finally { decoding = false; if (!closed && pendingFrame) void drawLatestFrame(); }
+      } finally {
+        decoding = false;
+        if (!closed && pendingFrame) void drawLatestFrame();
+      }
     };
-    let reconnectAttempt = 0; let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    let reconnectAttempt = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
     const stopHeartbeat = () => {
       if (heartbeatTimer) clearInterval(heartbeatTimer);
@@ -272,16 +314,21 @@ export function AgentBrowserViewport({
       let browserSessionSocket = false;
       try {
         const resolved = resolveConnection ? await resolveConnection() : null;
-        if (closed) return;
+        if (connectionClosed()) return;
         const nextStreamUrl = resolved?.url ?? streamUrl;
         const nextProtocols = resolved?.protocols ?? protocols;
-        if (!nextStreamUrl) throw new Error("A browser stream URL is required.");
-        const socketProtocols = typeof nextProtocols === "string"
-          ? nextProtocols
-          : nextProtocols ? [...nextProtocols] : undefined;
-        browserSessionSocket = typeof nextProtocols === "string"
-          ? nextProtocols === "browser-session.v1"
-          : nextProtocols?.includes("browser-session.v1") === true;
+        if (!nextStreamUrl)
+          throw new Error("A browser stream URL is required.");
+        const socketProtocols =
+          typeof nextProtocols === "string"
+            ? nextProtocols
+            : nextProtocols
+              ? [...nextProtocols]
+              : undefined;
+        browserSessionSocket =
+          typeof nextProtocols === "string"
+            ? nextProtocols === "browser-session.v1"
+            : nextProtocols?.includes("browser-session.v1") === true;
         socket = createWebSocket
           ? createWebSocket(nextStreamUrl, socketProtocols)
           : socketProtocols
@@ -299,7 +346,10 @@ export function AgentBrowserViewport({
         stopHeartbeat();
         if (browserSessionSocket) {
           heartbeatTimer = setInterval(() => {
-            if (socketRef.current === socket && socket.readyState === WebSocket.OPEN) {
+            if (
+              socketRef.current === socket &&
+              socket.readyState === WebSocket.OPEN
+            ) {
               send({ v: 1, type: "heartbeat", sentAt: Date.now() });
             }
           }, 5_000);
@@ -311,7 +361,12 @@ export function AgentBrowserViewport({
         if (closed) return;
         scheduleReconnect();
       });
-      socket.addEventListener("error", () => { if (!closed && socketRef.current === socket) { statusChangeRef.current?.("error"); socket.close(); } });
+      socket.addEventListener("error", () => {
+        if (!closed && socketRef.current === socket) {
+          statusChangeRef.current?.("error");
+          socket.close();
+        }
+      });
       socket.addEventListener("message", (event) => {
         if (event.data instanceof ArrayBuffer) {
           const decoded = decodeBrowserSessionBinaryFrame(event.data);
@@ -319,7 +374,8 @@ export function AgentBrowserViewport({
           if (
             decoded.header.sourceEpoch === sourceEpoch &&
             decoded.header.frameSequence <= lastRemoteFrameSequence
-          ) return;
+          )
+            return;
           if (decoded.header.sourceEpoch !== sourceEpoch) {
             sourceEpoch = decoded.header.sourceEpoch;
             lastRemoteFrameSequence = -1;
@@ -338,8 +394,15 @@ export function AgentBrowserViewport({
         if (typeof event.data !== "string") return;
         const message = parseAgentBrowserMessage(event.data);
         if (!message) return;
-        if (message.type === "url") { urlChangeRef.current?.(message.url); return; }
-        if (message.type === "cursor") { if (elementRef.current) elementRef.current.style.cursor = message.cursor; return; }
+        if (message.type === "url") {
+          urlChangeRef.current?.(message.url);
+          return;
+        }
+        if (message.type === "cursor") {
+          if (elementRef.current)
+            elementRef.current.style.cursor = message.cursor;
+          return;
+        }
         if (message.type === "command") {
           activityIdRef.current = message.id;
           activityChangeRef.current?.({
@@ -382,20 +445,41 @@ export function AgentBrowserViewport({
           }
           return;
         }
-        if (message.type === "error") { statusChangeRef.current?.("error"); return; }
+        if (message.type === "error") {
+          statusChangeRef.current?.("error");
+          return;
+        }
         if (message.type !== "frame") return;
-        pendingFrame = message; void drawLatestFrame();
+        pendingFrame = message;
+        void drawLatestFrame();
       });
     };
     void connect();
-    return () => { closed = true; pendingFrame = null; touchGestureRef.current = null; releaseActivePointer(); if (moveFrameRef.current) cancelAnimationFrame(moveFrameRef.current); if (reconnectTimer) clearTimeout(reconnectTimer); stopHeartbeat(); socketRef.current?.close(); socketRef.current = null; };
-  }, [createWebSocket, protocols, releaseActivePointer, resolveConnection, streamUrl]);
+    return () => {
+      closed = true;
+      pendingFrame = null;
+      touchGestureRef.current = null;
+      releaseActivePointer();
+      if (moveFrameRef.current) cancelAnimationFrame(moveFrameRef.current);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      stopHeartbeat();
+      socketRef.current?.close();
+      socketRef.current = null;
+    };
+  }, [
+    createWebSocket,
+    protocols,
+    releaseActivePointer,
+    resolveConnection,
+    streamUrl,
+  ]);
 
   const reportsViewportResize = onViewportResize !== undefined;
 
   useEffect(() => {
     if (!reportsViewportResize) return;
-    const element = elementRef.current; if (!element) return;
+    const element = elementRef.current;
+    if (!element) return;
     let last = "";
     let pending: { height: number; key: string; width: number } | null = null;
     let reportFrame: number | null = null;
@@ -439,34 +523,72 @@ export function AgentBrowserViewport({
 
   useEffect(() => {
     const handleKeyboard = (event: KeyboardEvent) => {
-      if (!inputEnabled || document.activeElement !== elementRef.current) return;
-      if (event.key === "Escape" && elementRef.current?.closest("[data-mode]:not([data-mode='inline'])")) return;
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") return;
-      event.preventDefault(); event.stopPropagation();
-      send(browserKeyboardInput(event, event.type === "keydown" ? "keyDown" : "keyUp"));
+      if (!inputEnabled || document.activeElement !== elementRef.current)
+        return;
+      if (
+        event.key === "Escape" &&
+        elementRef.current?.closest("[data-mode]:not([data-mode='inline'])")
+      )
+        return;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v")
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+      send(
+        browserKeyboardInput(
+          event,
+          event.type === "keydown" ? "keyDown" : "keyUp",
+        ),
+      );
     };
     const handlePaste = (event: ClipboardEvent) => {
-      if (!inputEnabled || document.activeElement !== elementRef.current) return;
-      const text = event.clipboardData?.getData("text/plain"); if (!text) return;
-      event.preventDefault(); event.stopPropagation();
+      if (!inputEnabled || document.activeElement !== elementRef.current)
+        return;
+      const text = event.clipboardData?.getData("text/plain");
+      if (!text) return;
+      event.preventDefault();
+      event.stopPropagation();
       for (const character of text) {
-        const input = { altKey: false, code: "", ctrlKey: false, key: character, metaKey: false, shiftKey: false };
-        send(browserKeyboardInput(input, "keyDown")); send(browserKeyboardInput(input, "keyUp"));
+        const input = {
+          altKey: false,
+          code: "",
+          ctrlKey: false,
+          key: character,
+          metaKey: false,
+          shiftKey: false,
+        };
+        send(browserKeyboardInput(input, "keyDown"));
+        send(browserKeyboardInput(input, "keyUp"));
       }
     };
     const releasePointer = () => releaseActivePointer();
-    const releasePointerWhenHidden = () => { if (document.visibilityState === "hidden") releaseActivePointer(); };
-    window.addEventListener("keydown", handleKeyboard, true); window.addEventListener("keyup", handleKeyboard, true);
-    window.addEventListener("paste", handlePaste, true); window.addEventListener("blur", releasePointer, true);
+    const releasePointerWhenHidden = () => {
+      if (document.visibilityState === "hidden") releaseActivePointer();
+    };
+    window.addEventListener("keydown", handleKeyboard, true);
+    window.addEventListener("keyup", handleKeyboard, true);
+    window.addEventListener("paste", handlePaste, true);
+    window.addEventListener("blur", releasePointer, true);
     document.addEventListener("visibilitychange", releasePointerWhenHidden);
-    return () => { releaseActivePointer(); window.removeEventListener("keydown", handleKeyboard, true); window.removeEventListener("keyup", handleKeyboard, true); window.removeEventListener("paste", handlePaste, true); window.removeEventListener("blur", releasePointer, true); document.removeEventListener("visibilitychange", releasePointerWhenHidden); };
+    return () => {
+      releaseActivePointer();
+      window.removeEventListener("keydown", handleKeyboard, true);
+      window.removeEventListener("keyup", handleKeyboard, true);
+      window.removeEventListener("paste", handlePaste, true);
+      window.removeEventListener("blur", releasePointer, true);
+      document.removeEventListener(
+        "visibilitychange",
+        releasePointerWhenHidden,
+      );
+    };
   }, [inputEnabled, releaseActivePointer, send]);
 
   useEffect(() => {
     if (inputEnabled) return;
     touchGestureRef.current = null;
     releaseActivePointer();
-    if (document.activeElement === elementRef.current) elementRef.current?.blur();
+    if (document.activeElement === elementRef.current)
+      elementRef.current?.blur();
   }, [inputEnabled, releaseActivePointer]);
 
   useEffect(() => {
@@ -483,20 +605,29 @@ export function AgentBrowserViewport({
     if (!pending) return;
     if (pending.kind === "click") {
       send({ type: "input_mouse", eventType: "mouseMoved", ...pending.input });
-      send({ type: "input_mouse", eventType: "mousePressed", ...pending.input });
-      send({ type: "input_mouse", eventType: "mouseReleased", ...pending.input });
+      send({
+        type: "input_mouse",
+        eventType: "mousePressed",
+        ...pending.input,
+      });
+      send({
+        type: "input_mouse",
+        eventType: "mouseReleased",
+        ...pending.input,
+      });
       return;
     }
     send({ type: "input_mouse", eventType: "mouseWheel", ...pending.input });
   }, [inputEnabled, send]);
-
   useEffect(() => {
     const element = elementRef.current;
     if (!element || (!inputEnabled && !interactionIntentEnabled)) return;
     let lastStandardWheelAt = Number.NEGATIVE_INFINITY;
     let wheelFrame: number | null = null;
     let schedulingWheelFrame = false;
-    let pendingWheelInput: PendingInteraction & { kind: "wheel" } | null = null;
+    const wheelFrameIsScheduling = () => schedulingWheelFrame;
+    let pendingWheelInput: (PendingInteraction & { kind: "wheel" }) | null =
+      null;
     const scheduleWheelFlush = () => {
       if (wheelFrame !== null || schedulingWheelFrame) return;
       schedulingWheelFrame = true;
@@ -506,10 +637,14 @@ export function AgentBrowserViewport({
         const pending = pendingWheelInput;
         pendingWheelInput = null;
         if (!pending) return;
-        send({ type: "input_mouse", eventType: "mouseWheel", ...pending.input });
+        send({
+          type: "input_mouse",
+          eventType: "mouseWheel",
+          ...pending.input,
+        });
         scheduleWheelFlush();
       });
-      if (schedulingWheelFrame) wheelFrame = frame;
+      if (wheelFrameIsScheduling()) wheelFrame = frame;
     };
     const sendWheelInput = (input: PendingInteraction & { kind: "wheel" }) => {
       if (wheelFrame === null && !schedulingWheelFrame) {
@@ -542,7 +677,9 @@ export function AgentBrowserViewport({
         event.target instanceof Node && element.contains(event.target);
       const hitTarget = document
         .elementsFromPoint(event.clientX, event.clientY)
-        .some((candidate) => candidate === element || element.contains(candidate));
+        .some(
+          (candidate) => candidate === element || element.contains(candidate),
+        );
       if (!eventTarget && !hitTarget) return;
       const position = point(event.clientX, event.clientY);
       if (!position) return;
@@ -591,26 +728,57 @@ export function AgentBrowserViewport({
       window.removeEventListener("wheel", handleWheel, { capture: true });
       window.removeEventListener("mousewheel", handleWheel, { capture: true });
     };
-  }, [inputEnabled, interactionIntentEnabled, point, requestInteractionControl, send]);
+  }, [
+    inputEnabled,
+    interactionIntentEnabled,
+    point,
+    requestInteractionControl,
+    send,
+  ]);
 
-  const mouse = (eventType: "mouseMoved" | "mousePressed", event: ReactPointerEvent<HTMLDivElement>) => {
-    const position = point(event.clientX, event.clientY); if (!position) return;
-    const pressedButton: ActivePointer["button"] = event.button === 2
-      ? "right"
-      : event.button === 1 ? "middle" : "left";
-    const button = eventType === "mouseMoved" && !activePointerRef.current
-      ? "none"
-      : pressedButton;
-    const message = { type: "input_mouse", eventType, ...position, button, clickCount: event.detail || 1, modifiers: modifiers(event) };
+  const mouse = (
+    eventType: "mouseMoved" | "mousePressed",
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const position = point(event.clientX, event.clientY);
+    if (!position) return;
+    const pressedButton: ActivePointer["button"] =
+      event.button === 2 ? "right" : event.button === 1 ? "middle" : "left";
+    const button =
+      eventType === "mouseMoved" && !activePointerRef.current
+        ? "none"
+        : pressedButton;
+    const message = {
+      type: "input_mouse",
+      eventType,
+      ...position,
+      button,
+      clickCount: event.detail || 1,
+      modifiers: modifiers(event),
+    };
     if (eventType === "mousePressed") {
       if (!releaseActivePointer()) return;
-      const active = { button: pressedButton, clickCount: message.clickCount, modifiers: message.modifiers, pointerId: event.pointerId, x: message.x, y: message.y };
-      if (send(message)) activePointerRef.current = active; return;
+      const active = {
+        button: pressedButton,
+        clickCount: message.clickCount,
+        modifiers: message.modifiers,
+        pointerId: event.pointerId,
+        x: message.x,
+        y: message.y,
+      };
+      if (send(message)) activePointerRef.current = active;
+      return;
     }
-    if (activePointerRef.current?.pointerId === event.pointerId) { activePointerRef.current.x = message.x; activePointerRef.current.y = message.y; }
+    if (activePointerRef.current?.pointerId === event.pointerId) {
+      activePointerRef.current.x = message.x;
+      activePointerRef.current.y = message.y;
+    }
     pendingMoveRef.current = message;
     if (moveFrameRef.current) return;
-    moveFrameRef.current = requestAnimationFrame(() => { moveFrameRef.current = null; if (pendingMoveRef.current) send(pendingMoveRef.current); });
+    moveFrameRef.current = requestAnimationFrame(() => {
+      moveFrameRef.current = null;
+      if (pendingMoveRef.current) send(pendingMoveRef.current);
+    });
   };
 
   const beginTouch = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -631,13 +799,17 @@ export function AgentBrowserViewport({
 
   const moveTouch = (event: ReactPointerEvent<HTMLDivElement>) => {
     const gesture = touchGestureRef.current;
-    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (gesture?.pointerId !== event.pointerId) return;
     const position = point(event.clientX, event.clientY);
     if (!position) return;
-    if (!gesture.moved && Math.hypot(
-      event.clientX - gesture.startClientX,
-      event.clientY - gesture.startClientY,
-    ) >= 6) gesture.moved = true;
+    if (
+      !gesture.moved &&
+      Math.hypot(
+        event.clientX - gesture.startClientX,
+        event.clientY - gesture.startClientY,
+      ) >= 6
+    )
+      gesture.moved = true;
     if (gesture.moved) {
       send({
         type: "input_mouse",
@@ -653,9 +825,12 @@ export function AgentBrowserViewport({
     gesture.lastY = position.y;
   };
 
-  const endTouch = (event: ReactPointerEvent<HTMLDivElement>, cancelled = false) => {
+  const endTouch = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    cancelled = false,
+  ) => {
     const gesture = touchGestureRef.current;
-    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (gesture?.pointerId !== event.pointerId) return;
     touchGestureRef.current = null;
     if (cancelled || gesture.moved) return;
     const position = point(event.clientX, event.clientY);
@@ -671,72 +846,89 @@ export function AgentBrowserViewport({
     send({ type: "input_mouse", eventType: "mouseReleased", ...input });
   };
 
-  return <div ref={elementRef} role="application" tabIndex={inputEnabled || interactionIntentEnabled ? 0 : -1} aria-label={ariaLabel} aria-disabled={!inputEnabled}
-    data-input-intent={interactionIntentEnabled ? "true" : undefined}
-    className={["bui-agent-viewport", className].filter(Boolean).join(" ")}
-    onContextMenu={(event) => event.preventDefault()}
-    onKeyDown={(event) => {
-      if (!interactionIntentEnabled || (event.key !== "Enter" && event.key !== " ")) return;
-      event.preventDefault();
-      event.stopPropagation();
-      requestInteractionControl();
-    }}
-    onPointerDown={(event) => {
-      if (!inputEnabled) {
-        if (interactionIntentEnabled) {
-          event.preventDefault();
-          event.stopPropagation();
-          const position = point(event.clientX, event.clientY);
-          if (position && !pendingInteractionRef.current) {
-            pendingInteractionRef.current = {
-              kind: "click",
-              input: {
-                ...position,
-                button: event.button === 2
-                  ? "right"
-                  : event.button === 1 ? "middle" : "left",
-                clickCount: event.detail || 1,
-                modifiers: modifiers(event),
-              },
-            };
+  return (
+    <div
+      ref={elementRef}
+      role="application"
+      tabIndex={inputEnabled || interactionIntentEnabled ? 0 : -1}
+      aria-label={ariaLabel}
+      aria-disabled={!inputEnabled}
+      data-input-intent={interactionIntentEnabled ? "true" : undefined}
+      className={["bui-agent-viewport", className].filter(Boolean).join(" ")}
+      onContextMenu={(event) => event.preventDefault()}
+      onKeyDown={(event) => {
+        if (
+          !interactionIntentEnabled ||
+          (event.key !== "Enter" && event.key !== " ")
+        )
+          return;
+        event.preventDefault();
+        event.stopPropagation();
+        requestInteractionControl();
+      }}
+      onPointerDown={(event) => {
+        if (!inputEnabled) {
+          if (interactionIntentEnabled) {
+            event.preventDefault();
+            event.stopPropagation();
+            const position = point(event.clientX, event.clientY);
+            if (position && !pendingInteractionRef.current) {
+              pendingInteractionRef.current = {
+                kind: "click",
+                input: {
+                  ...position,
+                  button:
+                    event.button === 2
+                      ? "right"
+                      : event.button === 1
+                        ? "middle"
+                        : "left",
+                  clickCount: event.detail || 1,
+                  modifiers: modifiers(event),
+                },
+              };
+            }
+            requestInteractionControl();
           }
-          requestInteractionControl();
+          return;
         }
-        return;
-      }
-      event.currentTarget.focus();
-      event.currentTarget.setPointerCapture(event.pointerId);
-      if (event.pointerType === "touch") beginTouch(event);
-      else mouse("mousePressed", event);
-    }}
-    onPointerMove={(event) => {
-      if (!inputEnabled) return;
-      if (event.pointerType === "touch") moveTouch(event);
-      else mouse("mouseMoved", event);
-    }}
-    onPointerUp={(event) => {
-      if (event.pointerType === "touch") endTouch(event);
-      else if (activePointerRef.current?.pointerId === event.pointerId) {
-        const position = point(event.clientX, event.clientY);
-        if (position) {
-          activePointerRef.current.x = position.x;
-          activePointerRef.current.y = position.y;
+        event.currentTarget.focus();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        if (event.pointerType === "touch") beginTouch(event);
+        else mouse("mousePressed", event);
+      }}
+      onPointerMove={(event) => {
+        if (!inputEnabled) return;
+        if (event.pointerType === "touch") moveTouch(event);
+        else mouse("mouseMoved", event);
+      }}
+      onPointerUp={(event) => {
+        if (event.pointerType === "touch") endTouch(event);
+        else if (activePointerRef.current?.pointerId === event.pointerId) {
+          const position = point(event.clientX, event.clientY);
+          if (position) {
+            activePointerRef.current.x = position.x;
+            activePointerRef.current.y = position.y;
+          }
+          releaseActivePointer();
         }
+        if (event.currentTarget.hasPointerCapture(event.pointerId))
+          event.currentTarget.releasePointerCapture(event.pointerId);
+      }}
+      onPointerCancel={(event) => {
+        if (event.pointerType === "touch") endTouch(event, true);
+        else releaseActivePointer();
+        if (event.currentTarget.hasPointerCapture(event.pointerId))
+          event.currentTarget.releasePointerCapture(event.pointerId);
+      }}
+      onLostPointerCapture={() => {
+        touchGestureRef.current = null;
         releaseActivePointer();
-      }
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    }}
-    onPointerCancel={(event) => {
-      if (event.pointerType === "touch") endTouch(event, true);
-      else releaseActivePointer();
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    }}
-    onLostPointerCapture={() => {
-      touchGestureRef.current = null;
-      releaseActivePointer();
-    }}>
-    <canvas ref={canvasRef} />
-  </div>;
+      }}
+    >
+      <canvas ref={canvasRef} />
+    </div>
+  );
 }
 
 function decodeBase64(encoded: string): Uint8Array<ArrayBuffer> {

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+
 import type { BrowserSessionCapability } from "@browser-ui/core";
 
 export interface BrowserGatewayTicketClaims {
@@ -41,15 +42,20 @@ export class OneTimeBrowserGatewayTickets {
     };
   }
 
-  consume(protocols: readonly string[], role: StoredTicket["role"]): BrowserGatewayTicketClaims | null {
-    const ticketProtocol = protocols.find((protocol) => protocol.startsWith("ticket."));
+  consume(
+    protocols: readonly string[],
+    role: StoredTicket["role"],
+  ): BrowserGatewayTicketClaims | null {
+    const ticketProtocol = protocols.find((protocol) =>
+      protocol.startsWith("ticket."),
+    );
     if (!ticketProtocol) return null;
     const token = ticketProtocol.slice("ticket.".length);
     if (!token) return null;
     const key = hash(token);
     const ticket = this.#tickets.get(key);
     this.#tickets.delete(key);
-    if (!ticket || ticket.role !== role || ticket.expiresAt <= Date.now()) return null;
+    if (ticket?.role !== role || ticket.expiresAt <= Date.now()) return null;
     const { expiresAt: _expiresAt, ...claims } = ticket;
     return claims;
   }

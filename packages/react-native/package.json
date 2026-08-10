@@ -40,9 +40,11 @@
     }
   },
   "scripts": {
-    "build": "pnpm --filter @browser-ui/core build && tsup src/index.ts --clean --format esm,cjs --dts --external react --external react-native --external @browser-ui/core",
+    "build": "tsup src/index.ts --clean --format esm,cjs --dts --external react --external react-native --external @browser-ui/core",
+    "format": "prettier --check . --ignore-path ../../.gitignore --ignore-path ../../.prettierignore",
+    "lint": "eslint --flag unstable_native_nodejs_ts_config",
     "prepack": "pnpm run build",
-    "typecheck": "pnpm --filter @browser-ui/core build && tsc --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "publishConfig": {
     "access": "public"
@@ -55,10 +57,16 @@
     "react-native": ">=0.81"
   },
   "devDependencies": {
+    "@browser-ui/eslint-config": "workspace:*",
+    "@browser-ui/prettier-config": "workspace:*",
+    "@browser-ui/tsconfig": "workspace:*",
     "@types/react": "^19.2.8",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
     "react": "^19.2.8",
     "react-native": "^0.83.6",
     "tsup": "^8.5.1",
-    "typescript": "^5.9.3"
-  }
+    "typescript": "catalog:"
+  },
+  "prettier": "@browser-ui/prettier-config"
 }

@@ -2,22 +2,39 @@
   "name": "browser-ui",
   "private": true,
   "engines": {
-    "node": ">=24"
+    "node": "24.x"
   },
   "packageManager": "pnpm@10.15.0",
   "scripts": {
     "changeset": "changeset",
+    "check": "pnpm lint && pnpm typecheck && pnpm format:fix",
+    "check:ci": "pnpm lint && pnpm typecheck && pnpm format",
+    "check:staged": "lint-staged --concurrent false && pnpm typecheck",
+    "check:node": "node tooling/scripts/assert-node-version.mjs .nvmrc",
     "dev": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/demo dev",
     "dev:live": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/demo dev:live",
-    "build": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/shaders build && pnpm --filter @browser-ui/gateway build && pnpm --filter @browser-ui/react build && pnpm --filter @browser-ui/react-native build && pnpm --filter @browser-ui/demo build && pnpm --filter @browser-ui/example-vercel-sandbox build",
-    "test": "pnpm --filter @browser-ui/core test && pnpm --filter @browser-ui/shaders test && pnpm --filter @browser-ui/gateway test && pnpm --filter @browser-ui/react test",
-    "typecheck": "pnpm --filter @browser-ui/core typecheck && pnpm --filter @browser-ui/shaders typecheck && pnpm --filter @browser-ui/gateway typecheck && pnpm --filter @browser-ui/react typecheck && pnpm --filter @browser-ui/react-native typecheck && pnpm --filter @browser-ui/demo typecheck && pnpm --filter @browser-ui/expo-demo typecheck && pnpm --filter @browser-ui/gateway-demo typecheck && pnpm --filter @browser-ui/example-vercel-sandbox typecheck",
+    "build": "turbo run build",
+    "format": "turbo run format --continue -- --cache --cache-location .cache/.prettiercache",
+    "format:fix": "turbo run format --continue -- --write --cache --cache-location .cache/.prettiercache",
+    "lint": "pnpm lint:source-size && turbo run lint --continue -- --cache --cache-location .cache/.eslintcache",
+    "lint:fix": "turbo run lint --continue -- --fix --cache --cache-location .cache/.eslintcache",
+    "lint:source-size": "node tooling/scripts/check-source-file-length.mjs",
+    "prepare": "husky",
     "sync:shaders": "pnpm --filter @browser-ui/shaders sync:flutter && pnpm --filter @browser-ui/shaders sync:swift",
+    "test": "turbo run test",
     "test:swift": "swift test",
+    "typecheck": "turbo run typecheck",
     "version-packages": "changeset version",
     "release": "pnpm build && npm_config_ignore_scripts=true changeset publish"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.31.1"
-  }
+    "@browser-ui/prettier-config": "workspace:*",
+    "@changesets/cli": "^2.31.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
+    "prettier": "catalog:",
+    "turbo": "^2.5.5",
+    "typescript": "catalog:"
+  },
+  "prettier": "@browser-ui/prettier-config"
 }

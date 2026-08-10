@@ -1,25 +1,43 @@
-import { createDemoSession, deleteDemoSession, DemoAccessError, isSandboxNotFound, validateDemoAccess, validateKey } from "../../../lib/sandbox-session";
+import {
+  createDemoSession,
+  deleteDemoSession,
+  DemoAccessError,
+  isSandboxNotFound,
+  validateDemoAccess,
+  validateKey,
+} from "../../../lib/sandbox-session";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({})) as { accessCode?: unknown; key?: unknown };
+    const body = (await request.json().catch(() => ({}))) as {
+      accessCode?: unknown;
+      key?: unknown;
+    };
     validateDemoAccess(body.accessCode);
     validateKey(body.key);
-    return Response.json(await createDemoSession(body.key, request.signal), { status: 201 });
+    return Response.json(await createDemoSession(body.key, request.signal), {
+      status: 201,
+    });
   } catch (error) {
-    return Response.json({
-      error: message(error),
-      ...(error instanceof DemoAccessError ? { code: error.code } : {}),
-    }, { status: error instanceof DemoAccessError ? error.status : 500 });
+    return Response.json(
+      {
+        error: message(error),
+        ...(error instanceof DemoAccessError ? { code: error.code } : {}),
+      },
+      { status: error instanceof DemoAccessError ? error.status : 500 },
+    );
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    const body = await request.json() as { key?: unknown; waitForCreation?: unknown };
+    const body = (await request.json()) as {
+      key?: unknown;
+      waitForCreation?: unknown;
+    };
     validateKey(body.key);
     if (body.waitForCreation === true) {
       for (let attempt = 0; attempt < 10; attempt += 1) {

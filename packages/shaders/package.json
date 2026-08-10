@@ -38,6 +38,8 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --clean --format esm,cjs --dts && node scripts/export-assets.mjs",
+    "format": "prettier --check . --ignore-path ../../.gitignore --ignore-path ../../.prettierignore",
+    "lint": "eslint --flag unstable_native_nodejs_ts_config",
     "prepack": "pnpm run build",
     "sync:flutter": "pnpm run build && node scripts/sync-flutter.mjs",
     "sync:swift": "pnpm run build && node scripts/sync-swift.mjs",
@@ -48,7 +50,13 @@
     "access": "public"
   },
   "devDependencies": {
+    "@browser-ui/eslint-config": "workspace:*",
+    "@browser-ui/prettier-config": "workspace:*",
+    "@browser-ui/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
     "tsup": "^8.5.1",
-    "typescript": "^5.9.3"
-  }
+    "typescript": "catalog:"
+  },
+  "prettier": "@browser-ui/prettier-config"
 }

@@ -1,6 +1,12 @@
 "use client";
 
 import { memo, useEffect, useRef } from "react";
+
+import type {
+  OperatingShaderDirection,
+  OperatingShaderSpeed,
+  OperatingShaderVariant,
+} from "@browser-ui/shaders";
 import {
   operatingShaderDirectionIds,
   operatingShaderDirections,
@@ -10,9 +16,6 @@ import {
   operatingShaderSpeeds,
   operatingShaderVariants,
   operatingShaderVertexSource,
-  type OperatingShaderDirection,
-  type OperatingShaderSpeed,
-  type OperatingShaderVariant,
 } from "@browser-ui/shaders";
 
 export const browserOperatingShaderVariants = operatingShaderVariants;
@@ -35,13 +38,20 @@ export interface BrowserOperatingShaderProps extends BrowserOperatingShaderOptio
   className?: string;
 }
 
-function compileShader(gl: WebGLRenderingContext, type: number, source: string) {
+function compileShader(
+  gl: WebGLRenderingContext,
+  type: number,
+  source: string,
+) {
   const shader = gl.createShader(type);
   if (!shader) return null;
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
   if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
-  console.warn("Browser UI operating shader compile error", gl.getShaderInfoLog(shader));
+  console.warn(
+    "Browser UI operating shader compile error",
+    gl.getShaderInfoLog(shader),
+  );
   gl.deleteShader(shader);
   return null;
 }
@@ -74,24 +84,30 @@ export const BrowserOperatingShader = memo(function BrowserOperatingShader({
     });
     if (!gl) return;
 
-    const vertexShader = compileShader(gl, gl.VERTEX_SHADER, operatingShaderVertexSource);
+    const vertexShader = compileShader(
+      gl,
+      gl.VERTEX_SHADER,
+      operatingShaderVertexSource,
+    );
     if (!vertexShader) return;
-    const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+    const fragmentShader = compileShader(
+      gl,
+      gl.FRAGMENT_SHADER,
+      fragmentSource,
+    );
     if (!fragmentShader) {
       gl.deleteShader(vertexShader);
       return;
     }
     const program = gl.createProgram();
-    if (!program) {
-      gl.deleteShader(vertexShader);
-      gl.deleteShader(fragmentShader);
-      return;
-    }
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.warn("Browser UI operating shader link error", gl.getProgramInfoLog(program));
+      console.warn(
+        "Browser UI operating shader link error",
+        gl.getProgramInfoLog(program),
+      );
       gl.deleteProgram(program);
       gl.deleteShader(vertexShader);
       gl.deleteShader(fragmentShader);
@@ -104,8 +120,8 @@ export const BrowserOperatingShader = memo(function BrowserOperatingShader({
     const directionUniform = gl.getUniformLocation(program, "u_direction");
     const speedUniform = gl.getUniformLocation(program, "u_speed");
     const buffer = gl.createBuffer();
-    if (position < 0 || resolution === null || time === null || !buffer) {
-      if (buffer) gl.deleteBuffer(buffer);
+    if (position < 0 || resolution === null || time === null) {
+      gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
       gl.deleteShader(vertexShader);
       gl.deleteShader(fragmentShader);
@@ -113,7 +129,11 @@ export const BrowserOperatingShader = memo(function BrowserOperatingShader({
     }
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array([-1, -1, 3, -1, -1, 3]),
+      gl.STATIC_DRAW,
+    );
     gl.useProgram(program);
     gl.enableVertexAttribArray(position);
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
@@ -141,13 +161,20 @@ export const BrowserOperatingShader = memo(function BrowserOperatingShader({
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.uniform2f(resolution, canvas.width, canvas.height);
-      gl.uniform1f(time, reducedMotion.matches ? 5 : (timestamp - startedAt) / 1_000);
+      gl.uniform1f(
+        time,
+        reducedMotion.matches ? 5 : (timestamp - startedAt) / 1_000,
+      );
       if (directionUniform !== null) {
-        const [directionX, directionY] = operatingShaderDirections[directionRef.current].vector;
+        const [directionX, directionY] =
+          operatingShaderDirections[directionRef.current].vector;
         gl.uniform2f(directionUniform, directionX, directionY);
       }
       if (speedUniform !== null) {
-        gl.uniform1f(speedUniform, 1 / operatingShaderSpeeds[speedRef.current].durationSeconds);
+        gl.uniform1f(
+          speedUniform,
+          1 / operatingShaderSpeeds[speedRef.current].durationSeconds,
+        );
       }
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       if (!reducedMotion.matches && visible && !document.hidden) {
@@ -157,14 +184,22 @@ export const BrowserOperatingShader = memo(function BrowserOperatingShader({
 
     const redraw = () => {
       cancelAnimationFrame(animationFrame);
-      if (visible && !document.hidden) animationFrame = requestAnimationFrame(draw);
+      if (visible && !document.hidden)
+        animationFrame = requestAnimationFrame(draw);
     };
     redrawRef.current = redraw;
-    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(redraw);
-    const intersectionObserver = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(([entry]) => {
-      visible = entry?.isIntersecting ?? true;
-      redraw();
-    }, { rootMargin: "120px" });
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(redraw);
+    const intersectionObserver =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver(
+            ([entry]) => {
+              visible = entry?.isIntersecting ?? true;
+              redraw();
+            },
+            { rootMargin: "120px" },
+          );
     if (resizeObserver) resizeObserver.observe(canvas);
     else window.addEventListener("resize", redraw);
     intersectionObserver?.observe(canvas);
@@ -191,12 +226,14 @@ export const BrowserOperatingShader = memo(function BrowserOperatingShader({
     redrawRef.current();
   }, [resolvedDirection, resolvedSpeed]);
 
-  return <canvas
-    aria-hidden
-    className={["bui-operating-shader", className].filter(Boolean).join(" ")}
-    data-direction={resolvedDirection}
-    data-speed={resolvedSpeed}
-    data-variant={variant}
-    ref={canvasRef}
-  />;
+  return (
+    <canvas
+      aria-hidden
+      className={["bui-operating-shader", className].filter(Boolean).join(" ")}
+      data-direction={resolvedDirection}
+      data-speed={resolvedSpeed}
+      data-variant={variant}
+      ref={canvasRef}
+    />
+  );
 });

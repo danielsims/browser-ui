@@ -1,4 +1,9 @@
-export const operatingShaderVariants = ["subtle", "prism", "pulse", "tide"] as const;
+export const operatingShaderVariants = [
+  "subtle",
+  "prism",
+  "pulse",
+  "tide",
+] as const;
 export type OperatingShaderVariant = (typeof operatingShaderVariants)[number];
 
 type DirectionVector = readonly [x: number, y: number];
@@ -13,7 +18,8 @@ export const operatingShaderDirectionIds = [
   "bottom-left-to-top-right",
   "bottom-right-to-top-left",
 ] as const;
-export type OperatingShaderDirection = (typeof operatingShaderDirectionIds)[number];
+export type OperatingShaderDirection =
+  (typeof operatingShaderDirectionIds)[number];
 
 export interface OperatingShaderDirectionDefinition {
   label: string;
@@ -25,11 +31,26 @@ export const operatingShaderDirections = {
   "right-to-left": { label: "Right to left", vector: [-1, 0] },
   "top-to-bottom": { label: "Top to bottom", vector: [0, -1] },
   "bottom-to-top": { label: "Bottom to top", vector: [0, 1] },
-  "top-left-to-bottom-right": { label: "Top left to bottom right", vector: [1, -1] },
-  "top-right-to-bottom-left": { label: "Top right to bottom left", vector: [-1, -1] },
-  "bottom-left-to-top-right": { label: "Bottom left to top right", vector: [1, 1] },
-  "bottom-right-to-top-left": { label: "Bottom right to top left", vector: [-1, 1] },
-} as const satisfies Record<OperatingShaderDirection, OperatingShaderDirectionDefinition>;
+  "top-left-to-bottom-right": {
+    label: "Top left to bottom right",
+    vector: [1, -1],
+  },
+  "top-right-to-bottom-left": {
+    label: "Top right to bottom left",
+    vector: [-1, -1],
+  },
+  "bottom-left-to-top-right": {
+    label: "Bottom left to top right",
+    vector: [1, 1],
+  },
+  "bottom-right-to-top-left": {
+    label: "Bottom right to top left",
+    vector: [-1, 1],
+  },
+} as const satisfies Record<
+  OperatingShaderDirection,
+  OperatingShaderDirectionDefinition
+>;
 
 export const operatingShaderSpeedIds = ["slow", "fast"] as const;
 export type OperatingShaderSpeed = (typeof operatingShaderSpeedIds)[number];
@@ -42,7 +63,10 @@ export interface OperatingShaderSpeedDefinition {
 export const operatingShaderSpeeds = {
   slow: { durationSeconds: 15, label: "Slow · 15s" },
   fast: { durationSeconds: 7, label: "Fast · 7s" },
-} as const satisfies Record<OperatingShaderSpeed, OperatingShaderSpeedDefinition>;
+} as const satisfies Record<
+  OperatingShaderSpeed,
+  OperatingShaderSpeedDefinition
+>;
 
 export interface OperatingShaderMeta {
   accent: string;
@@ -221,7 +245,10 @@ const pulseMovement = {
   waveAmount: 0.82,
 } as const;
 
-export const operatingShaderFragmentSources: Record<OperatingShaderVariant, string> = {
+export const operatingShaderFragmentSources: Record<
+  OperatingShaderVariant,
+  string
+> = {
   subtle: subtleFragmentShader,
   prism: createSweepShader({
     brightness: 1.2,

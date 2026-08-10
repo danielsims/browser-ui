@@ -1,50 +1,50 @@
-import {
-  mapContainedPointToViewport,
-  canSendBrowserInput,
-  type BrowserAgentCursorState,
-  type BrowserSessionAccess,
-  type BrowserViewportSize,
-} from "@browser-ui/core";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import {
-  ActivityIndicator,
-  Image,
-  StyleSheet,
-  Text,
-  View,
-  type GestureResponderEvent,
-  type ImageErrorEventData,
-  type LayoutChangeEvent,
-  type NativeSyntheticEvent,
-  type StyleProp,
-  type ViewProps,
-  type ViewStyle,
+import type { ReactNode } from "react";
+import type {
+  GestureResponderEvent,
+  ImageErrorEventData,
+  LayoutChangeEvent,
+  NativeSyntheticEvent,
+  StyleProp,
+  ViewProps,
+  ViewStyle,
 } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
+
+import type {
+  BrowserAgentCursorState,
+  BrowserSessionAccess,
+  BrowserViewportSize,
+} from "@browser-ui/core";
 import {
-  useAgentBrowserStream,
-  type AgentBrowserConnectionStatus,
-  type AgentBrowserReconnectOptions,
+  canSendBrowserInput,
+  mapContainedPointToViewport,
+} from "@browser-ui/core";
+
+import type {
+  AgentBrowserConnectionStatus,
+  AgentBrowserReconnectOptions,
 } from "./use-agent-browser-stream";
+import { useAgentBrowserStream } from "./use-agent-browser-stream";
 
 type PointerDownHandler = NonNullable<ViewProps["onPointerDown"]>;
 type PointerMoveHandler = NonNullable<ViewProps["onPointerMove"]>;
 type PointerUpHandler = NonNullable<ViewProps["onPointerUp"]>;
 
-export interface AgentBrowserViewProps
-  extends Omit<
-    ViewProps,
-    | "children"
-    | "onLayout"
-    | "onPointerCancel"
-    | "onPointerDown"
-    | "onPointerMove"
-    | "onPointerUp"
-    | "onResponderGrant"
-    | "onResponderMove"
-    | "onResponderRelease"
-    | "onResponderTerminate"
-    | "onStartShouldSetResponder"
-  > {
+export interface AgentBrowserViewProps extends Omit<
+  ViewProps,
+  | "children"
+  | "onLayout"
+  | "onPointerCancel"
+  | "onPointerDown"
+  | "onPointerMove"
+  | "onPointerUp"
+  | "onResponderGrant"
+  | "onResponderMove"
+  | "onResponderRelease"
+  | "onResponderTerminate"
+  | "onStartShouldSetResponder"
+> {
   agentCursor?: BrowserAgentCursorState;
   /** Host-projected access state. The gateway must enforce the same lease. */
   access?: BrowserSessionAccess;
@@ -137,7 +137,11 @@ function cursorPosition(
 ): BrowserPoint | null {
   if (!cursor || !viewport) return null;
   const record = cursor as unknown as Record<string, unknown>;
-  if (record.visible === false || typeof record.x !== "number" || typeof record.y !== "number") {
+  if (
+    record.visible === false ||
+    typeof record.x !== "number" ||
+    typeof record.y !== "number"
+  ) {
     return null;
   }
   const scale = Math.min(
@@ -336,7 +340,9 @@ export function AgentBrowserView({
       modifiers: eventModifiers(event),
     };
     stream.send({ type: "input_mouse", eventType: "mouseMoved", ...input });
-    if (stream.send({ type: "input_mouse", eventType: "mousePressed", ...input })) {
+    if (
+      stream.send({ type: "input_mouse", eventType: "mousePressed", ...input })
+    ) {
       activePointerRef.current = {
         button,
         clickCount: 1,
@@ -435,7 +441,11 @@ export function AgentBrowserView({
               transform: [
                 { translateX: renderedCursor.x - 7 },
                 { translateY: renderedCursor.y - 7 },
-                { scale: (agentCursor as { pressed?: boolean }).pressed ? 0.82 : 1 },
+                {
+                  scale: (agentCursor as { pressed?: boolean }).pressed
+                    ? 0.82
+                    : 1,
+                },
               ],
             },
           ]}

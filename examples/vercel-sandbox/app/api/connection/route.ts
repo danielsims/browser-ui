@@ -1,10 +1,15 @@
-import { gatewayRequest, getDemoSession, isSandboxNotFound, validateKey } from "../../../lib/sandbox-session";
+import {
+  gatewayRequest,
+  getDemoSession,
+  isSandboxNotFound,
+  validateKey,
+} from "../../../lib/sandbox-session";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as {
+    const body = (await request.json()) as {
       clientInstanceId?: unknown;
       key?: unknown;
     };
@@ -22,11 +27,15 @@ export async function POST(request: Request) {
         frameEncodings: ["binary-jpeg", "json-base64"],
       },
     );
-    const result = await response.json();
+    const result: unknown = await response.json();
     return Response.json(result, { status: response.status });
   } catch (error) {
     return Response.json(
-      { error: isSandboxNotFound(error) ? "The sandbox session has ended" : message(error) },
+      {
+        error: isSandboxNotFound(error)
+          ? "The sandbox session has ended"
+          : message(error),
+      },
       { status: isSandboxNotFound(error) ? 410 : 400 },
     );
   }

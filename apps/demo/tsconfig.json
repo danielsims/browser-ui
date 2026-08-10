@@ -1,11 +1,8 @@
 {
+  "extends": "@browser-ui/tsconfig/base.json",
   "compilerOptions": {
     "target": "ES2022",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "strict": true,
     "noEmit": true,
     "module": "esnext",
@@ -14,9 +11,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@browser-ui/react": [
-        "../../packages/react/src/index.tsx"
-      ]
+      "@browser-ui/react": ["../../packages/react/src/index.tsx"]
     },
     "plugins": [
       {
@@ -24,7 +19,6 @@
       }
     ],
     "allowJs": true,
-    "incremental": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "isolatedModules": true
@@ -62,7 +56,5 @@
     ".next-dev-3001/types/**/*.ts",
     ".next-dev-3001/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules"
-  ]
+  "exclude": ["node_modules"]
 }

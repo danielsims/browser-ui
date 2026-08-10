@@ -10,7 +10,9 @@ import {
   operatingShaderVertexSource,
 } from "../dist/index.js";
 
-const outputDirectory = fileURLToPath(new URL("../dist/assets/", import.meta.url));
+const outputDirectory = fileURLToPath(
+  new URL("../dist/assets/", import.meta.url),
+);
 await mkdir(outputDirectory, { recursive: true });
 
 const manifest = {
@@ -26,9 +28,14 @@ await Promise.all([
     new URL("../dist/assets/manifest.json", import.meta.url),
     `${JSON.stringify(manifest, null, 2)}\n`,
   ),
-  writeFile(new URL("../dist/assets/vertex.vert", import.meta.url), operatingShaderVertexSource),
-  ...operatingShaderVariants.map((variant) => writeFile(
-    new URL(`../dist/assets/${variant}.frag`, import.meta.url),
-    operatingShaderFragmentSources[variant],
-  )),
+  writeFile(
+    new URL("../dist/assets/vertex.vert", import.meta.url),
+    operatingShaderVertexSource,
+  ),
+  ...operatingShaderVariants.map((variant) =>
+    writeFile(
+      new URL(`../dist/assets/${variant}.frag`, import.meta.url),
+      operatingShaderFragmentSources[variant],
+    ),
+  ),
 ]);

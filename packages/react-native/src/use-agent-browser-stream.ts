@@ -1,18 +1,15 @@
-import {
-  type AgentBrowserIncomingMessage,
-  type BrowserViewportSize,
-  parseAgentBrowserMessage,
-} from "@browser-ui/core";
+import type { AppStateStatus } from "react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, type AppStateStatus } from "react-native";
+import { AppState } from "react-native";
+
+import type {
+  AgentBrowserIncomingMessage,
+  BrowserViewportSize,
+} from "@browser-ui/core";
+import { parseAgentBrowserMessage } from "@browser-ui/core";
 
 export type AgentBrowserConnectionStatus =
-  | "idle"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "paused"
-  | "error";
+  "idle" | "connecting" | "connected" | "reconnecting" | "paused" | "error";
 
 export interface AgentBrowserReconnectOptions {
   /** Delay before the first retry. Defaults to 500ms. */
@@ -134,8 +131,9 @@ export function useAgentBrowserStream({
   const [remoteStatus, setRemoteStatus] =
     useState<AgentBrowserIncomingMessage | null>(null);
   const [remoteUrl, setRemoteUrl] = useState<string | null>(null);
-  const [viewportSize, setViewportSize] =
-    useState<BrowserViewportSize | null>(null);
+  const [viewportSize, setViewportSize] = useState<BrowserViewportSize | null>(
+    null,
+  );
   const callbacksRef = useRef<CallbackRefs>({
     onError,
     onMessage,
@@ -146,7 +144,9 @@ export function useAgentBrowserStream({
   const statusRef = useRef<AgentBrowserConnectionStatus>("idle");
   const viewportRef = useRef<BrowserViewportSize | null>(null);
   const restartRef = useRef<() => void>(() => undefined);
-  callbacksRef.current = { onError, onMessage, onStatusChange, onUrlChange };
+  useEffect(() => {
+    callbacksRef.current = { onError, onMessage, onStatusChange, onUrlChange };
+  }, [onError, onMessage, onStatusChange, onUrlChange]);
 
   const protocolsKey = Array.isArray(protocols)
     ? JSON.stringify(protocols)
@@ -170,7 +170,7 @@ export function useAgentBrowserStream({
 
   const send = useCallback((message: unknown) => {
     const socket = socketRef.current;
-    if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+    if (socket?.readyState !== WebSocket.OPEN) return false;
     try {
       socket.send(JSON.stringify(message));
       return true;
@@ -262,14 +262,10 @@ export function useAgentBrowserStream({
         message,
         receivedAt: Date.now(),
         sequence: frameSequence,
-        uri: data.startsWith("data:")
-          ? data
-          : `data:image/jpeg;base64,${data}`,
+        uri: data.startsWith("data:") ? data : `data:image/jpeg;base64,${data}`,
         viewportSize: nextViewport,
       };
-      if (frameRequest === null) {
-        frameRequest = requestAnimationFrame(flushFrame);
-      }
+      frameRequest ??= requestAnimationFrame(flushFrame);
     };
 
     let connect = () => undefined;
@@ -353,7 +349,10 @@ export function useAgentBrowserStream({
           return;
         }
         if (record?.type === "status") {
-          const nextViewport = viewportFromMessage(message, viewportRef.current);
+          const nextViewport = viewportFromMessage(
+            message,
+            viewportRef.current,
+          );
           if (nextViewport) {
             viewportRef.current = nextViewport;
             setViewportSize(nextViewport);
@@ -396,11 +395,14 @@ export function useAgentBrowserStream({
     };
     restartRef.current = restart;
 
-    setFrame(null);
-    setRemoteStatus(null);
-    setRemoteUrl(null);
-    setViewportSize(null);
     viewportRef.current = null;
+    queueMicrotask(() => {
+      if (disposed) return;
+      setFrame(null);
+      setRemoteStatus(null);
+      setRemoteUrl(null);
+      setViewportSize(null);
+    });
 
     const appStateSubscription = AppState.addEventListener(
       "change",

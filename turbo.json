@@ -1,0 +1,53 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "globalEnv": [
+    "AGENT_BROWSER_*",
+    "ALLOW_LOCAL_SANDBOX_USAGE",
+    "AI_GATEWAY_*",
+    "BROWSER_UI_*",
+    "DEMO_ACCESS_CODE",
+    "EXPO_PUBLIC_*",
+    "HOST",
+    "NEXT_PUBLIC_*",
+    "VERCEL",
+    "VERCEL_*"
+  ],
+  "globalPassThroughEnv": ["CI", "NODE_ENV", "npm_lifecycle_event"],
+  "tasks": {
+    "topo": {
+      "dependsOn": ["^topo"]
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        ".cache/tsbuildinfo.json",
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "format": {
+      "outputs": [".cache/.prettiercache"]
+    },
+    "lint": {
+      "dependsOn": ["topo", "^build"],
+      "outputs": [".cache/.eslintcache"]
+    },
+    "test": {
+      "dependsOn": ["topo", "^build"],
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["topo", "^build"],
+      "outputs": [".cache/tsbuildinfo.json"]
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

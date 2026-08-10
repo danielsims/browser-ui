@@ -14,10 +14,12 @@ const flutterShaders = new URL("../../flutter/shaders/", import.meta.url);
 const flutterLibrary = new URL("../../flutter/lib/src/", import.meta.url);
 
 await Promise.all([
-  ...operatingShaderVariants.map((variant) => writeFile(
-    new URL(`operating_${variant}.frag`, flutterShaders),
-    flutterFragmentSource(operatingShaderFragmentSources[variant]),
-  )),
+  ...operatingShaderVariants.map((variant) =>
+    writeFile(
+      new URL(`operating_${variant}.frag`, flutterShaders),
+      flutterFragmentSource(operatingShaderFragmentSources[variant]),
+    ),
+  ),
   // Preserve the original internal asset key while it remains the Flutter
   // package's default operating shader.
   writeFile(

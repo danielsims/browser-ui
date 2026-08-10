@@ -1,12 +1,14 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import type { BrowserAgentActivity } from "@browser-ui/react";
 import {
   Browser,
   BrowserLoading,
   BrowserRoot,
   BrowserSurface,
-  type BrowserAgentActivity,
 } from "@browser-ui/react";
 
 interface DemoSession {
@@ -16,6 +18,26 @@ interface DemoSession {
   sessionId: string;
   title: string;
   viewport: { width: number; height: number };
+}
+
+interface ApiError {
+  error?: string;
+}
+
+interface ConnectionResponse extends ApiError {
+  connection: { protocols: string[]; url: string };
+}
+
+interface SessionResponse extends ApiError, DemoSession {
+  code?: string;
+}
+
+interface ControlResponse extends ApiError {
+  leaseId?: string;
+}
+
+interface ChatResponse extends ApiError {
+  reply?: string;
 }
 
 const deployUrl =
@@ -34,7 +56,8 @@ export default function Page() {
   const [deploymentRequired, setDeploymentRequired] = useState(false);
   const [starting, setStarting] = useState(true);
   const [agentRunning, setAgentRunning] = useState(false);
-  const [agentActivity, setAgentActivity] = useState<BrowserAgentActivity | null>(null);
+  const [agentActivity, setAgentActivity] =
+    useState<BrowserAgentActivity | null>(null);
   const [control, setControl] = useState<"agent" | "human">("agent");
   const [leaseId, setLeaseId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -44,13 +67,10 @@ export default function Page() {
   );
   const [hasPrompted, setHasPrompted] = useState(false);
   const startedRef = useRef(false);
-  const sessionRef = useRef<DemoSession | null>(null);
   const pendingSessionKeyRef = useRef<string | null>(null);
   const lastActivityRef = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const clientInstanceId = session ? `viewer_${session.key}` : "";
-  sessionRef.current = session;
-
   const resolveConnection = useCallback(async () => {
     if (!session) throw new Error("Sandbox is not ready");
     const response = await fetch("/api/connection", {
@@ -61,7 +81,7 @@ export default function Page() {
         clientInstanceId: `viewer_${session.key}`,
       }),
     });
-    const result = await response.json();
+    const result = (await response.json()) as ConnectionResponse;
     if (!response.ok) {
       if (response.status === 410) {
         setSession(null);
@@ -89,7 +109,7 @@ export default function Page() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ accessCode: code, key }),
       });
-      const result = await response.json();
+      const result = (await response.json()) as SessionResponse;
       if (response.status === 412 && result.code === "deployment_required") {
         pendingSessionKeyRef.current = null;
         setDeploymentRequired(true);
@@ -132,10 +152,9 @@ export default function Page() {
 
   useEffect(() => {
     const cleanUp = (event: PageTransitionEvent) => {
-      const active = sessionRef.current;
+      const active = session;
       const pendingKey = pendingSessionKeyRef.current;
       if (event.persisted || (!active && !pendingKey)) return;
-      sessionRef.current = null;
       pendingSessionKeyRef.current = null;
       void fetch("/api/session", {
         method: "DELETE",
@@ -149,7 +168,7 @@ export default function Page() {
     };
     window.addEventListener("pagehide", cleanUp);
     return () => window.removeEventListener("pagehide", cleanUp);
-  }, []);
+  }, [session]);
 
   const reportActivity = useCallback(() => {
     if (!session || Date.now() - lastActivityRef.current < 60_000) return;
@@ -161,9 +180,12 @@ export default function Page() {
     });
   }, [session]);
 
-  const handleAgentActivity = useCallback((activity: BrowserAgentActivity | null) => {
-    if (activity) setAgentActivity(activity);
-  }, []);
+  const handleAgentActivity = useCallback(
+    (activity: BrowserAgentActivity | null) => {
+      if (activity) setAgentActivity(activity);
+    },
+    [],
+  );
 
   async function endSession() {
     if (!session) return;
@@ -175,7 +197,7 @@ export default function Page() {
         body: JSON.stringify({ key: session.key }),
       });
       if (!response.ok) {
-        const result = await response.json().catch(() => ({}));
+        const result = (await response.json().catch(() => ({}))) as ApiError;
         throw new Error(result.error ?? "Could not end the sandbox");
       }
       setSession(null);
@@ -202,12 +224,12 @@ export default function Page() {
           ...(leaseId ? { leaseId } : {}),
         }),
       });
-      const result = await response.json();
+      const result = (await response.json()) as ControlResponse;
       if (!response.ok)
         throw new Error(result.error ?? "Could not change browser control");
       const nextControl = action === "acquire" ? "human" : "agent";
       setControl(nextControl);
-      setLeaseId(action === "acquire" ? result.leaseId : null);
+      setLeaseId(action === "acquire" ? (result.leaseId ?? null) : null);
       setReply(
         action === "acquire"
           ? "You have control of the browser."
@@ -232,7 +254,7 @@ export default function Page() {
     setReply(instruction);
     setAgentActivity(null);
     setAgentRunning(true);
-    if (control === "human" && !await changeControl("release")) {
+    if (control === "human" && !(await changeControl("release"))) {
       setPrompt(instruction);
       setAgentRunning(false);
       return;
@@ -243,7 +265,7 @@ export default function Page() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ key: session.key, prompt: instruction }),
       });
-      const result = await response.json();
+      const result = (await response.json()) as ChatResponse;
       if (!response.ok)
         throw new Error(
           result.error ?? "The agent could not complete that request",
@@ -473,7 +495,10 @@ export default function Page() {
           </div>
         ) : null}
         {!deploymentRequired ? (
-          <form className="composer" onSubmit={(event) => void sendPrompt(event)}>
+          <form
+            className="composer"
+            onSubmit={(event) => void sendPrompt(event)}
+          >
             <textarea
               ref={textareaRef}
               aria-label="Browser instruction"
@@ -490,7 +515,9 @@ export default function Page() {
                 }
               }}
               placeholder={
-                session ? "Ask the agent to browse..." : "Start a sandbox to begin"
+                session
+                  ? "Ask the agent to browse..."
+                  : "Start a sandbox to begin"
               }
               rows={1}
               value={prompt}
@@ -500,11 +527,7 @@ export default function Page() {
                 <i /> GPT-5.6 Luna
               </span>
               <button
-                disabled={
-                  !session ||
-                  !prompt.trim() ||
-                  agentRunning
-                }
+                disabled={!session || !prompt.trim() || agentRunning}
                 type="submit"
                 aria-label="Send instruction"
                 title="Send instruction"
