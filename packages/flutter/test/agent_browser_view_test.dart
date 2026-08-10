@@ -83,7 +83,14 @@ void main() {
             child: Stack(
               children: [
                 ColoredBox(color: Colors.black),
-                BrowserOperatingOverlay(label: 'Selecting memory'),
+                BrowserOperatingOverlay(
+                  label: 'Selecting memory',
+                  shader: BrowserOperatingShaderConfiguration(
+                    variant: BrowserOperatingShaderVariant.tide,
+                    direction: BrowserOperatingShaderDirection.rightToLeft,
+                    speed: BrowserOperatingShaderSpeed.slow,
+                  ),
+                ),
               ],
             ),
           ),
@@ -99,5 +106,23 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(TextButton), findsNothing);
+  });
+
+  test('exposes every shared shader variant, direction, and speed', () {
+    expect(BrowserOperatingShaderVariant.values, [
+      BrowserOperatingShaderVariant.subtle,
+      BrowserOperatingShaderVariant.prism,
+      BrowserOperatingShaderVariant.pulse,
+      BrowserOperatingShaderVariant.tide,
+    ]);
+    expect(BrowserOperatingShaderDirection.values, hasLength(8));
+    expect(
+      BrowserOperatingShaderVariant.tide.defaults.resolvedDirection,
+      BrowserOperatingShaderDirection.topLeftToBottomRight,
+    );
+    expect(
+      BrowserOperatingShaderVariant.pulse.defaults.resolvedSpeed,
+      BrowserOperatingShaderSpeed.fast,
+    );
   });
 }

@@ -7,4 +7,5 @@ export 'src/browser_sheet.dart';
 export 'src/contained_geometry.dart';
 export 'src/controller.dart';
 export 'src/operating_overlay.dart';
+export 'src/operating_shader_configuration.dart';
 export 'src/protocol.dart';

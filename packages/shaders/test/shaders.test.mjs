@@ -10,6 +10,7 @@ import {
   operatingShaderVariants,
 } from "../dist/index.js";
 import { flutterFragmentSource } from "../scripts/flutter-source.mjs";
+import { dartConfigurationSource } from "../scripts/dart-source.mjs";
 import { metalLibrarySource } from "../scripts/metal-source.mjs";
 import { swiftConfigurationSource } from "../scripts/swift-source.mjs";
 
@@ -77,7 +78,7 @@ test("keeps every Flutter shader generated from the canonical sources", async ()
   );
 });
 
-test("generates native Swift and Metal sources from the shared definitions", () => {
+test("keeps native Swift and Metal generated from the shared definitions", async () => {
   const metal = metalLibrarySource(
     operatingShaderFragmentSources,
     operatingShaderVariants,
@@ -100,4 +101,45 @@ test("generates native Swift and Metal sources from the shared definitions", () 
   assert.match(swift, /case leftToRight = "left-to-right"/);
   assert.match(swift, /case \.leftToRight: CGVector\(dx: 1, dy: 0\)/);
   assert.match(swift, /case \.slow: 15/);
+
+  const checkedInMetal = await readFile(
+    new URL("../../swift/Sources/BrowserUI/Shaders/BrowserOperatingShader.metal", import.meta.url),
+    "utf8",
+  );
+  const checkedInSwift = await readFile(
+    new URL("../../swift/Sources/BrowserUI/BrowserOperatingShaderConfiguration.swift", import.meta.url),
+    "utf8",
+  );
+  assert.equal(checkedInMetal, metal);
+  assert.equal(checkedInSwift, swift);
+});
+
+test("generates Flutter configuration from the shared definitions", () => {
+  const dart = dartConfigurationSource({
+    directions: operatingShaderDirections,
+    meta: operatingShaderMeta,
+    speeds: operatingShaderSpeeds,
+    variants: operatingShaderVariants,
+  });
+  assert.match(dart, /BrowserOperatingShaderVariant\.tide/);
+  assert.match(dart, /BrowserOperatingShaderDirection\.topLeftToBottomRight/);
+  assert.match(dart, /fast\(7\);/);
+  assert.match(dart, /BrowserOperatingShaderDirection\.leftToRight => \(x: 1\.0, y: 0\.0\)/);
+});
+
+test("keeps checked-in Flutter configuration aligned with the generator", async () => {
+  const generated = dartConfigurationSource({
+    directions: operatingShaderDirections,
+    meta: operatingShaderMeta,
+    speeds: operatingShaderSpeeds,
+    variants: operatingShaderVariants,
+  });
+  const checkedIn = await readFile(
+    new URL("../../flutter/lib/src/operating_shader_configuration.dart", import.meta.url),
+    "utf8",
+  );
+  const withoutFormatting = (source) => source
+    .replaceAll(/\s+/g, "")
+    .replaceAll(",)", ")");
+  assert.equal(withoutFormatting(checkedIn), withoutFormatting(generated));
 });
