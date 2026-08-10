@@ -26,3 +26,7 @@ flutter:
   uses-material-design: true
   shaders:
     - shaders/operating_overlay.frag
+    - shaders/operating_subtle.frag
+    - shaders/operating_prism.frag
+    - shaders/operating_pulse.frag
+    - shaders/operating_tide.frag
