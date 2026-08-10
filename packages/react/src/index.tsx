@@ -1,11 +1,11 @@
 "use client";
 
-export { Browser } from "./browser";
-export type { BrowserProps } from "./browser";
+export { AgentBrowser, Browser } from "./browser";
+export type { AgentBrowserProps, BrowserProps } from "./browser";
 export { BrowserRecording } from "./browser-recording";
 export type { BrowserRecordingProps, BrowserRecordingTimelineEvent } from "./browser-recording";
-export { BrowserDisplayControls, BrowserDisplayTrigger, BrowserFullscreenTrigger, BrowserPictureInPictureTrigger } from "./browser-display";
-export type { BrowserDisplayControlsProps, BrowserDisplayMode, BrowserDisplayTriggerProps, BrowserFullscreenTriggerProps, BrowserPictureInPictureTriggerProps } from "./browser-display";
+export { BrowserDisplayControls, BrowserDisplayTrigger, BrowserEndSessionTrigger, BrowserFullscreenTrigger, BrowserPictureInPictureTrigger } from "./browser-display";
+export type { BrowserDisplayControlsProps, BrowserDisplayMode, BrowserDisplayTriggerProps, BrowserEndSessionTriggerProps, BrowserFullscreenTriggerProps, BrowserPictureInPictureTriggerProps } from "./browser-display";
 export { BrowserRoot } from "./browser-root";
 export type { BrowserColorScheme, BrowserRootProps, BrowserVariant } from "./browser-root";
 export { BrowserSurface, BrowserLoading } from "./browser-surface";

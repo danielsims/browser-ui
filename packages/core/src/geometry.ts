@@ -8,6 +8,11 @@ export interface BrowserViewportPoint {
   y: number;
 }
 
+/** Preview uses the agent's stable canvas; takeover uses the viewer device bounds. */
+export const browserViewportPresentationModes = ["preview", "takeover"] as const;
+export type BrowserViewportPresentationMode =
+  (typeof browserViewportPresentationModes)[number];
+
 /**
  * Maps a point in a contained presentation surface to the remote viewport.
  * Points in letterboxed space are rejected instead of hitting a page edge.

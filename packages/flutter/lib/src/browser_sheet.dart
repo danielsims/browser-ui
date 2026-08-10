@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'access.dart';
@@ -11,11 +13,13 @@ final class BrowserSheet extends StatelessWidget {
   const BrowserSheet({
     required this.controller,
     required this.onClose,
+    this.onEndSession,
     this.title = 'Browser',
     this.interactive = false,
     this.access,
     this.semanticLabel = 'Remote browser',
     this.closeTooltip = 'Close browser',
+    this.endSessionTooltip = 'End browsing session',
     this.backgroundColor,
     this.placeholderBuilder,
     this.onStatusChanged,
@@ -27,11 +31,13 @@ final class BrowserSheet extends StatelessWidget {
 
   final AgentBrowserController controller;
   final VoidCallback onClose;
+  final FutureOr<void> Function()? onEndSession;
   final String title;
   final bool interactive;
   final BrowserSessionAccess? access;
   final String semanticLabel;
   final String closeTooltip;
+  final String endSessionTooltip;
   final Color? backgroundColor;
   final AgentBrowserPlaceholderBuilder? placeholderBuilder;
   final ValueChanged<AgentBrowserConnectionStatus>? onStatusChanged;
@@ -73,6 +79,8 @@ final class BrowserSheet extends StatelessWidget {
                   controller: controller,
                   title: title,
                   closeTooltip: closeTooltip,
+                  endSessionTooltip: endSessionTooltip,
+                  onEndSession: onEndSession,
                   onClose: onClose,
                 );
               },
@@ -107,13 +115,17 @@ final class _BrowserSheetHeader extends StatelessWidget {
     required this.controller,
     required this.title,
     required this.closeTooltip,
+    required this.endSessionTooltip,
     required this.onClose,
+    this.onEndSession,
   });
 
   final AgentBrowserController controller;
   final String title;
   final String closeTooltip;
+  final String endSessionTooltip;
   final VoidCallback onClose;
+  final FutureOr<void> Function()? onEndSession;
 
   @override
   Widget build(BuildContext context) {
@@ -136,7 +148,7 @@ final class _BrowserSheetHeader extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Row(
           children: <Widget>[
-            const SizedBox(width: 48),
+            SizedBox(width: onEndSession == null ? 48 : 96),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -178,14 +190,24 @@ final class _BrowserSheetHeader extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox.square(
-              dimension: 48,
-              child: IconButton(
-                onPressed: onClose,
-                tooltip: closeTooltip,
-                icon: const Icon(Icons.close_rounded),
-                visualDensity: VisualDensity.compact,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (onEndSession != null)
+                  BrowserEndSessionButton(
+                    onEndSession: onEndSession!,
+                    tooltip: endSessionTooltip,
+                  ),
+                SizedBox.square(
+                  dimension: 48,
+                  child: IconButton(
+                    onPressed: onClose,
+                    tooltip: closeTooltip,
+                    icon: const Icon(Icons.close_rounded),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -214,10 +236,58 @@ final class _BrowserSheetHeader extends StatelessWidget {
   }
 }
 
+/// Package-owned terminal action. Closing the sheet remains presentation-only.
+final class BrowserEndSessionButton extends StatefulWidget {
+  const BrowserEndSessionButton({
+    required this.onEndSession,
+    this.tooltip = 'End browsing session',
+    super.key,
+  });
+
+  final FutureOr<void> Function() onEndSession;
+  final String tooltip;
+
+  @override
+  State<BrowserEndSessionButton> createState() =>
+      _BrowserEndSessionButtonState();
+}
+
+final class _BrowserEndSessionButtonState
+    extends State<BrowserEndSessionButton> {
+  bool _ending = false;
+
+  Future<void> _end() async {
+    if (_ending) return;
+    setState(() => _ending = true);
+    try {
+      await widget.onEndSession();
+    } finally {
+      if (mounted) setState(() => _ending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 48,
+    child: IconButton(
+      onPressed: _ending ? null : _end,
+      tooltip: _ending ? 'Ending browsing session' : widget.tooltip,
+      icon: _ending
+          ? const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.stop_circle_outlined),
+      visualDensity: VisualDensity.compact,
+    ),
+  );
+}
+
 /// Presents [BrowserSheet] without taking ownership of the browser session.
 ///
 /// The supplied controller is not connected, disconnected, or disposed. The
-/// host can use [onDismissed] to release a control lease or end its session.
+/// host can use [onDismissed] to release a control lease. Only
+/// [onEndSession] represents terminal browser lifecycle intent.
 Future<T?> showBrowserSheet<T>({
   required BuildContext context,
   required AgentBrowserController controller,
@@ -226,6 +296,7 @@ Future<T?> showBrowserSheet<T>({
   BrowserSessionAccess? access,
   String semanticLabel = 'Remote browser',
   String closeTooltip = 'Close browser',
+  String endSessionTooltip = 'End browsing session',
   double heightFactor = 0.92,
   bool isDismissible = true,
   bool enableDrag = true,
@@ -239,6 +310,7 @@ Future<T?> showBrowserSheet<T>({
   ValueChanged<AgentBrowserFrame>? onFrame,
   ValueChanged<Map<String, Object?>>? onInputSent,
   VoidCallback? onDismissed,
+  FutureOr<void> Function()? onEndSession,
 }) async {
   assert(heightFactor > 0 && heightFactor <= 1);
   final result = await showModalBottomSheet<T>(
@@ -261,6 +333,8 @@ Future<T?> showBrowserSheet<T>({
           access: access,
           semanticLabel: semanticLabel,
           closeTooltip: closeTooltip,
+          endSessionTooltip: endSessionTooltip,
+          onEndSession: onEndSession,
           backgroundColor: backgroundColor,
           placeholderBuilder: placeholderBuilder,
           onStatusChanged: onStatusChanged,

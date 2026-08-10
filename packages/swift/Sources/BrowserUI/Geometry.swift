@@ -1,5 +1,11 @@
 import CoreGraphics
 
+/// Preview preserves the agent's stable canvas; takeover uses viewer bounds.
+public enum BrowserViewportPresentationMode: String, Codable, CaseIterable, Sendable {
+    case preview
+    case takeover
+}
+
 /// Equivalent to `mapContainedPointToViewport` geometry in browser-ui core.
 public func containedViewportRect(
     container: CGSize,

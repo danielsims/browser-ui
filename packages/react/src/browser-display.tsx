@@ -5,6 +5,7 @@ import {
   forwardRef,
   useContext,
   useMemo,
+  useState,
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
@@ -52,6 +53,13 @@ function FullscreenIcon({ active }: { active: boolean }) {
     : <svg aria-hidden="true" viewBox="0 0 16 16">
       <path d="M6 2H2v4m8-4h4v4M6 14H2v-4m8 4h4v-4" />
     </svg>;
+}
+
+function EndSessionIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 16 16">
+    <rect x="3" y="3" width="10" height="10" rx="2" />
+    <path d="m6 6 4 4m0-4-4 4" />
+  </svg>;
 }
 
 export type BrowserDisplayControlsProps = HTMLMotionProps<"div">;
@@ -138,5 +146,51 @@ export const BrowserFullscreenTrigger = forwardRef<HTMLButtonElement, BrowserFul
     }}
   >
     <FullscreenIcon active={active} />
+  </BrowserDisplayTrigger>;
+});
+
+export interface BrowserEndSessionTriggerProps extends Omit<BrowserDisplayTriggerProps, "onClick"> {
+  endLabel?: string;
+  endingLabel?: string;
+  onEndSession: () => Promise<void> | void;
+}
+
+/** Terminal lifecycle action. This is intentionally distinct from leaving fullscreen. */
+export const BrowserEndSessionTrigger = forwardRef<HTMLButtonElement, BrowserEndSessionTriggerProps>(function BrowserEndSessionTrigger({
+  className,
+  disabled,
+  endLabel = "End browsing session",
+  endingLabel = "Ending browsing session",
+  onEndSession,
+  ...props
+}, forwardedRef) {
+  const [ending, setEnding] = useState(false);
+  const label = ending ? endingLabel : endLabel;
+
+  return <BrowserDisplayTrigger
+    {...props}
+    ref={forwardedRef}
+    className={["bui-end-session", className].filter(Boolean).join(" ")}
+    aria-label={props["aria-label"] ?? label}
+    title={props.title ?? label}
+    disabled={disabled || ending}
+    onClick={() => {
+      if (ending) return;
+      setEnding(true);
+      // The host owns user-facing error presentation. Keep the control usable
+      // after a failed termination without leaking an unhandled rejection.
+      let result: Promise<void> | void;
+      try {
+        result = onEndSession();
+      } catch {
+        setEnding(false);
+        return;
+      }
+      void Promise.resolve(result)
+        .catch(() => undefined)
+        .finally(() => setEnding(false));
+    }}
+  >
+    <EndSessionIcon />
   </BrowserDisplayTrigger>;
 });

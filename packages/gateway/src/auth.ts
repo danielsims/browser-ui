@@ -1,5 +1,5 @@
 import type { IncomingMessage } from "node:http";
-import type { BrowserSessionDescriptor } from "@browser-ui/core";
+import type { BrowserSessionCapability, BrowserSessionDescriptor } from "@browser-ui/core";
 
 export interface BrowserGatewayPrincipal {
   id: string;
@@ -10,13 +10,14 @@ export type BrowserGatewayAuthenticationAction =
   | "source:create"
   | "source:connect"
   | "viewer:observe"
-  | "viewer:control";
+  | "viewer:control"
+  | "viewer:terminate";
 
 export interface BrowserGatewayAuthorizationContext {
   principal: BrowserGatewayPrincipal;
   session: BrowserSessionDescriptor;
   producer: BrowserGatewayPrincipal;
-  capability: "observe" | "control";
+  capability: BrowserSessionCapability;
 }
 
 export type BrowserGatewayAuthenticator = (

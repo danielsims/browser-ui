@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "endReasons": ["completed", "user-ended", "replaced", "unavailable"],
+  "viewportModes": ["preview", "takeover"],
+  "validRequests": [
+    {
+      "version": 1,
+      "sessionId": "bs_test_session",
+      "clientInstanceId": "client_01",
+      "reason": "user-ended"
+    },
+    {
+      "version": 1,
+      "sessionId": "session-2",
+      "clientInstanceId": "device_phone",
+      "reason": "completed"
+    }
+  ],
+  "invalidRequests": [
+    {
+      "version": 1,
+      "sessionId": "",
+      "clientInstanceId": "client_01",
+      "reason": "user-ended"
+    },
+    {
+      "version": 1,
+      "sessionId": "bs_test_session",
+      "clientInstanceId": "client 01",
+      "reason": "user-ended"
+    },
+    {
+      "version": 1,
+      "sessionId": "bs_test_session",
+      "clientInstanceId": "client_01",
+      "reason": "closed"
+    }
+  ],
+  "receipt": {
+    "version": 1,
+    "sessionId": "bs_test_session",
+    "status": "ended",
+    "reason": "user-ended",
+    "endedAt": "2026-08-10T05:00:00Z"
+  }
+}

@@ -95,6 +95,19 @@ describe("AgentBrowserViewport", () => {
     expect(MockResizeObserver.observeCount).toBe(0);
   });
 
+  it("exposes ending as a terminal action distinct from fullscreen", async () => {
+    const onEndSession = vi.fn();
+    render(<Browser
+      streamUrl="ws://127.0.0.1:9223"
+      onEndSession={onEndSession}
+      showFullscreen
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "End browsing session" }));
+    expect(onEndSession).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Open browser full screen" })).toBeTruthy();
+  });
+
   it("does not report a usable browser on WebSocket open alone", async () => {
     const onStatusChange = vi.fn();
     render(<AgentBrowserViewport
