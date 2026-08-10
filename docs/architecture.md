@@ -197,6 +197,52 @@ internals are a distinct runtime domain without becoming another public package.
 and native bottom sheet. Dart and TypeScript share protocol behavior and test
 fixtures rather than pretending one language can import the other's types.
 
+`packages/swift` contains matching SwiftUI lifecycle, presentation, geometry,
+cursor, chrome, and shader primitives. Its tests read the same lifecycle
+fixture as TypeScript and Flutter.
+
+## Browser drivers
+
+Browser engines sit behind a small, capability-based contract rather than a
+single lowest-common-denominator implementation:
+
+- `agent-browser` remains the authority for remote Chromium automation. The
+  gateway adapts its authenticated frame stream while callers use the upstream
+  CLI or MCP surface for semantic commands.
+- `BrowserUIWebKit` owns an on-device `WKWebView`, semantic snapshots, stable
+  element references, native preview/takeover presentation, and the WebKit
+  actions it truthfully advertises.
+
+`BrowserDriverDescriptor` is the portable boundary. A driver identifies its
+kind and additive capabilities; consumers check capabilities instead of
+assuming that every engine supports tabs, downloads, recording, or other
+agent-browser features. `packages/core/test/fixtures/browser-drivers.json` is
+read by TypeScript and Swift tests to prevent the two contracts drifting.
+
+Engine code must not enter the presentation primitives. In particular,
+`BrowserUI` does not import WebKit, and the React stream viewer does not own
+agent-browser's command implementation.
+
+## Browser lifecycle
+
+A viewer has two independent lifecycles:
+
+- Presentation moves between `preview` and `takeover`. Closing fullscreen or a
+  sheet returns to the host without touching the browser process.
+- Session lifetime ends only through a versioned `BrowserSessionEndRequest`.
+  The authorized owner performs an idempotent termination and returns a
+  `BrowserSessionEndReceipt` with terminal status, reason, and timestamp.
+
+The `terminate` capability authorizes `POST /v1/sessions/:sessionId/end`.
+After a receipt exists, source or viewer reconnection for that session is
+rejected. Hosts should insert the receipt as a compact transcript artifact and
+release local WebView, socket, or browser-process resources. A new browser in
+the same conversation must receive a new session ID.
+
+`packages/core/test/fixtures/session-lifecycle.json` is the language-neutral
+contract. Core/React, Flutter, and Swift run in CI, so adding a lifecycle value
+requires all platform parsers and conformance tests to move together.
+
 ## Integration Contract
 
 A host integration should be able to remain this small:

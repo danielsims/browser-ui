@@ -14,10 +14,10 @@ npm install @browser-ui/react
 ## Usage
 
 ```tsx
-import { Browser } from "@browser-ui/react";
+import { AgentBrowser } from "@browser-ui/react";
 import "@browser-ui/react/styles.css"; // Optional reference theme.
 
-<Browser
+<AgentBrowser
   streamUrl={session.streamUrl}
   viewportSize={{ width: 1440, height: 900 }}
   operating={session.agentActive}
@@ -28,6 +28,7 @@ import "@browser-ui/react/styles.css"; // Optional reference theme.
     speed: "fast",
   }}
   onTakeControl={session.takeControl}
+  onEndSession={session.end}
   showPictureInPicture
   showFullscreen
 />
@@ -38,8 +39,11 @@ attributes. Import the optional stylesheet above as a reference theme, or style
 the primitives with the host application's design system.
 
 The host owns the browser process, stream URL, navigation, and workflow state.
-`Browser` owns the interactive viewport, visual agent activity, and display
+`AgentBrowser` owns the interactive viewport, visual agent activity, and display
 modes for inline, picture-in-picture, and fullscreen use.
+
+`Browser` remains an equivalent compatibility export. Use `AgentBrowser` when
+the driver distinction should be explicit beside native WebKit surfaces.
 
 Pointer, keyboard, paste, and wheel input are forwarded by the live viewport.
 Wheel capture works inside nested application scrollers and fullscreen layouts,
@@ -94,33 +98,29 @@ without moving workflow behavior into the package:
 import {
   Browser,
   BrowserDisplayTrigger,
-  BrowserFullscreenTrigger,
 } from "@browser-ui/react";
 
 <Browser
   streamUrl={session.streamUrl}
+  onEndSession={session.end}
   displayControls={
-    <>
-      <BrowserDisplayTrigger
-        aria-label="Open in primary browser"
-        onClick={session.openExternally}
-      >
-        <ExternalLinkIcon />
-      </BrowserDisplayTrigger>
-      <BrowserFullscreenTrigger />
-      <BrowserDisplayTrigger
-        aria-label="End browser session"
-        onClick={session.end}
-      >
-        <CloseIcon />
-      </BrowserDisplayTrigger>
-    </>
+    <BrowserDisplayTrigger
+      aria-label="Open in primary browser"
+      onClick={session.openExternally}
+    >
+      <ExternalLinkIcon />
+    </BrowserDisplayTrigger>
   }
+  showFullscreen
 />
 ```
 
 Use `displayControlsClassName` to adjust how a host's controls reveal while
 keeping them inside Browser UI's package-owned top-right rail.
+
+`onEndSession` renders the package-owned terminal action. It must terminate the
+underlying browser and persist the returned receipt. Exiting fullscreen or
+unmounting `Browser` must never call it implicitly.
 
 ## Access and control
 

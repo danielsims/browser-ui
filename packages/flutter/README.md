@@ -42,14 +42,21 @@ try {
     access: session.access,
     // Access must include the viewer's active server-side control lease.
     interactive: true,
+    onEndSession: () async {
+      final receipt = await api.endBrowserSession(session.endRequest);
+      transcript.add(receipt);
+    },
     onDismissed: session.releaseControl,
   );
 } finally {
   browser.disconnect();
   browser.dispose();
-  // End the remote browser session separately if product behavior requires it.
 }
 ```
+
+The sheet's close affordance only dismisses the viewer. Its end-session
+affordance invokes `onEndSession`; the host terminates the browser, releases its
+resources, and persists a `BrowserSessionEndReceipt` for the transcript.
 
 For custom composition:
 
@@ -64,6 +71,21 @@ SizedBox(
     onUrlChanged: reportPageUrl,
     onFrame: reportFirstFrame,
     onInputSent: auditLocalInput,
+  ),
+)
+```
+
+The operating overlay is generated from the same `@browser-ui/shaders`
+definitions as React and Swift. It supports `subtle`, `prism`, `pulse`, and
+`tide`, with the same eight directions and `slow`/`fast` timing presets:
+
+```dart
+const BrowserOperatingOverlay(
+  label: 'Selecting memory',
+  shader: BrowserOperatingShaderConfiguration(
+    variant: BrowserOperatingShaderVariant.tide,
+    direction: BrowserOperatingShaderDirection.leftToRight,
+    speed: BrowserOperatingShaderSpeed.fast,
   ),
 )
 ```
@@ -121,6 +143,7 @@ a trusted gateway.
 - `ContainedViewportGeometry`
 - `AgentBrowserView`
 - `BrowserSheet` and `showBrowserSheet`
+- `BrowserSessionEndRequest`, `BrowserSessionEndReceipt`, and lifecycle enums
 
 ## Verification
 
