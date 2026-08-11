@@ -6,8 +6,25 @@ import "./styles.css";
 import "@browser-ui/react/styles.css";
 
 export const metadata: Metadata = {
-  title: "Browser UI",
-  description: "Streaming browser UI for React",
+  title: "browser-ui",
+  description:
+    "A composable React viewport for agent-browser. Stream a real session, visualize agent actions and hand control to a person without changing transports.",
+  metadataBase: new URL("https://browser-ui-red.vercel.app"),
+  openGraph: {
+    title: "browser-ui",
+    description:
+      "A composable React viewport for agent-browser. Stream a real session, visualize agent actions and hand control to a person without changing transports.",
+    url: "https://browser-ui-red.vercel.app",
+    type: "website",
+    images: ["/api/og"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "browser-ui",
+    description:
+      "A composable React viewport for agent-browser. Stream a real session, visualize agent actions and hand control to a person without changing transports.",
+    images: ["/api/og"],
+  },
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
