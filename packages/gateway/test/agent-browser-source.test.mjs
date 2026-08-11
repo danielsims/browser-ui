@@ -1,24 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import WebSocket, { WebSocketServer } from "ws";
+
 import { decodeBrowserSessionBinaryFrame } from "@browser-ui/core";
 
-import { createBrowserSessionGateway } from "../dist/index.js";
 import {
   agentBrowserDriverDescriptor,
   relayAgentBrowserSession,
   validateLoopbackStreamUrl,
 } from "../dist/agent-browser/index.js";
+import { createBrowserSessionGateway } from "../dist/index.js";
 
 test("advertises upstream agent-browser separately from native WebKit", () => {
   assert.equal(agentBrowserDriverDescriptor.kind, "agent-browser");
-  assert.ok(agentBrowserDriverDescriptor.capabilities.includes("remote-frame-stream"));
-  assert.equal(agentBrowserDriverDescriptor.capabilities.includes("native-surface"), false);
+  assert.ok(
+    agentBrowserDriverDescriptor.capabilities.includes("remote-frame-stream"),
+  );
+  assert.equal(
+    agentBrowserDriverDescriptor.capabilities.includes("native-surface"),
+    false,
+  );
 });
 
 test("only accepts private loopback agent-browser sockets", () => {
-  assert.equal(validateLoopbackStreamUrl("ws://127.0.0.1:9223"), "ws://127.0.0.1:9223/");
-  assert.throws(() => validateLoopbackStreamUrl("wss://sessions.example.com/source"));
+  assert.equal(
+    validateLoopbackStreamUrl("ws://127.0.0.1:9223"),
+    "ws://127.0.0.1:9223/",
+  );
+  assert.throws(() =>
+    validateLoopbackStreamUrl("wss://sessions.example.com/source"),
+  );
   assert.throws(() => validateLoopbackStreamUrl("ws://192.168.1.20:9223"));
 });
 
@@ -38,43 +49,57 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
   let localSocket;
   local.on("connection", (socket) => {
     localSocket = socket;
-    socket.on("message", (data) => resolveLocalInput(JSON.parse(data.toString())));
-    socket.send(JSON.stringify({
-      type: "status",
-      connected: true,
-      screencasting: true,
-      viewportWidth: 1280,
-      viewportHeight: 800,
-    }));
-    socket.send(JSON.stringify({
-      type: "frame",
-      data: "/9gBAgP/2Q==",
-      metadata: {
-        deviceWidth: 1280,
-        deviceHeight: 800,
-        pageScaleFactor: 1,
-        offsetTop: 0,
-        scrollOffsetX: 0,
-        scrollOffsetY: 0,
-      },
-    }));
+    socket.on("message", (data) =>
+      resolveLocalInput(JSON.parse(data.toString())),
+    );
+    socket.send(
+      JSON.stringify({
+        type: "status",
+        connected: true,
+        screencasting: true,
+        viewportWidth: 1280,
+        viewportHeight: 800,
+      }),
+    );
+    socket.send(
+      JSON.stringify({
+        type: "frame",
+        data: "/9gBAgP/2Q==",
+        metadata: {
+          deviceWidth: 1280,
+          deviceHeight: 800,
+          pageScaleFactor: 1,
+          offsetTop: 0,
+          scrollOffsetX: 0,
+          scrollOffsetY: 0,
+        },
+      }),
+    );
   });
 
   let origin = "http://127.0.0.1";
   const gateway = createBrowserSessionGateway({
     publicOrigin: () => origin,
     authenticate(request, action) {
-      if (action.startsWith("source:") && request.headers.authorization === "Bearer source") {
+      if (
+        action.startsWith("source:") &&
+        request.headers.authorization === "Bearer source"
+      ) {
         return { id: "source", kind: "service" };
       }
-      if (action.startsWith("viewer:") && request.headers.authorization === "Bearer viewer") {
+      if (
+        action.startsWith("viewer:") &&
+        request.headers.authorization === "Bearer viewer"
+      ) {
         return { id: "viewer", kind: "user" };
       }
       return null;
     },
     authorize: () => true,
   });
-  await new Promise((resolve) => gateway.server.listen(0, "127.0.0.1", resolve));
+  await new Promise((resolve) =>
+    gateway.server.listen(0, "127.0.0.1", resolve),
+  );
   const gatewayAddress = gateway.server.address();
   assert.ok(gatewayAddress && typeof gatewayAddress === "object");
   origin = `http://127.0.0.1:${gatewayAddress.port}`;
@@ -86,9 +111,10 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
     viewport: { width: 1280, height: 800 },
     authorize: () => ({ authorization: "Bearer source" }),
     navigate: async (direction) => resolveNavigation(direction),
-    agentCursorFromConsole: (message) => message.text === "cursor:25:75"
-      ? { x: 0.25, y: 0.75, visible: true }
-      : null,
+    agentCursorFromConsole: (message) =>
+      message.text === "cursor:25:75"
+        ? { x: 0.25, y: 0.75, visible: true }
+        : null,
   });
   context.after(async () => {
     await source.close();
@@ -113,9 +139,15 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
   );
   assert.equal(response.status, 200);
   const resolution = await response.json();
-  const viewer = new WebSocket(resolution.connection.url, resolution.connection.protocols);
+  const viewer = new WebSocket(
+    resolution.connection.url,
+    resolution.connection.protocols,
+  );
   const frame = await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("Timed out waiting for relayed frame")), 2_000);
+    const timeout = setTimeout(
+      () => reject(new Error("Timed out waiting for relayed frame")),
+      2_000,
+    );
     viewer.on("message", (data, isBinary) => {
       if (!isBinary) return;
       clearTimeout(timeout);
@@ -136,29 +168,34 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
     viewer,
     (message) => message.type === "activity" && message.phase === "started",
   );
-  localSocket.send(JSON.stringify({
-    type: "command",
-    action: "fill",
-    id: "fill-one",
-    params: { selector: "#password", value: "not-for-viewers" },
-    timestamp: Date.now(),
-  }));
+  localSocket.send(
+    JSON.stringify({
+      type: "command",
+      action: "fill",
+      id: "fill-one",
+      params: { selector: "#password", value: "not-for-viewers" },
+      timestamp: Date.now(),
+    }),
+  );
   const started = await startedActivity;
   assert.equal(started.label, "Entering text");
   assert.equal(JSON.stringify(started).includes("not-for-viewers"), false);
 
   const cursorActivity = nextJsonMessage(
     viewer,
-    (message) => message.type === "activity" &&
+    (message) =>
+      message.type === "activity" &&
       message.phase === "started" &&
       message.agentCursor,
   );
-  localSocket.send(JSON.stringify({
-    type: "console",
-    level: "debug",
-    text: "cursor:25:75",
-    timestamp: Date.now(),
-  }));
+  localSocket.send(
+    JSON.stringify({
+      type: "console",
+      level: "debug",
+      text: "cursor:25:75",
+      timestamp: Date.now(),
+    }),
+  );
   const cursorStarted = await cursorActivity;
   assert.deepEqual(cursorStarted.agentCursor, {
     x: 0.25,
@@ -170,21 +207,26 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
     viewer,
     (message) => message.type === "activity" && message.phase === "completed",
   );
-  localSocket.send(JSON.stringify({
-    type: "result",
-    id: "fill-one",
-    action: "fill",
-    success: true,
-    data: null,
-    duration_ms: 42,
-    timestamp: Date.now(),
-  }));
+  localSocket.send(
+    JSON.stringify({
+      type: "result",
+      id: "fill-one",
+      action: "fill",
+      success: true,
+      data: null,
+      duration_ms: 42,
+      timestamp: Date.now(),
+    }),
+  );
   const completed = await completedActivity;
   assert.equal(completed.id, "fill-one");
   assert.equal(completed.durationMs, 42);
 
   const latestBurstFrame = new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("Timed out waiting for latest burst frame")), 3_000);
+    const timeout = setTimeout(
+      () => reject(new Error("Timed out waiting for latest burst frame")),
+      3_000,
+    );
     const listener = (data, isBinary) => {
       if (!isBinary) return;
       const next = decodeBrowserSessionBinaryFrame(data);
@@ -199,24 +241,31 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
   const frameBody = Buffer.alloc(512 * 1024, 1);
   for (let index = 0; index < 12; index += 1) {
     frameBody[0] = index;
-    localSocket.send(JSON.stringify({
-      type: "frame",
-      data: Buffer.concat([Buffer.from([0xff, 0xd8]), frameBody, Buffer.from([0xff, 0xd9])]).toString("base64"),
-      metadata: {
-        deviceWidth: 1280,
-        deviceHeight: 800,
-        pageScaleFactor: 1,
-        offsetTop: 0,
-        scrollOffsetX: 0,
-        scrollOffsetY: 0,
-      },
-    }));
+    localSocket.send(
+      JSON.stringify({
+        type: "frame",
+        data: Buffer.concat([
+          Buffer.from([0xff, 0xd8]),
+          frameBody,
+          Buffer.from([0xff, 0xd9]),
+        ]).toString("base64"),
+        metadata: {
+          deviceWidth: 1280,
+          deviceHeight: 800,
+          pageScaleFactor: 1,
+          offsetTop: 0,
+          scrollOffsetX: 0,
+          scrollOffsetY: 0,
+        },
+      }),
+    );
   }
   await new Promise((resolve) => setTimeout(resolve, 50));
   viewer._socket.resume();
   await latestBurstFrame;
   assert.ok(
-    source.getMetrics().framesDropped > 0 || gateway.getMetrics().viewerFramesDropped > 0,
+    source.getMetrics().framesDropped > 0 ||
+      gateway.getMetrics().viewerFramesDropped > 0,
     "expected stale burst frames to be dropped",
   );
 
@@ -228,24 +277,31 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
         authorization: "Bearer viewer",
         "content-type": "application/json",
       },
-      body: JSON.stringify({ action: "acquire", clientInstanceId: "binary_viewer" }),
+      body: JSON.stringify({
+        action: "acquire",
+        clientInstanceId: "binary_viewer",
+      }),
     },
   );
   assert.equal(control.status, 200);
-  viewer.send(JSON.stringify({
-    type: "input_mouse",
-    eventType: "mousePressed",
-    x: 640,
-    y: 400,
-    button: "left",
-    clickCount: 1,
-    modifiers: 0,
-  }));
+  viewer.send(
+    JSON.stringify({
+      type: "input_mouse",
+      eventType: "mousePressed",
+      x: 640,
+      y: 400,
+      button: "left",
+      clickCount: 1,
+      modifiers: 0,
+    }),
+  );
   assert.equal((await localInput).eventType, "mousePressed");
-  viewer.send(JSON.stringify({
-    type: "input_navigation",
-    direction: "back",
-  }));
+  viewer.send(
+    JSON.stringify({
+      type: "input_navigation",
+      direction: "back",
+    }),
+  );
   assert.equal(await navigation, "back");
   viewer.close();
 });
@@ -257,17 +313,25 @@ test("resolves a fresh local stream URL after the agent-browser stream restarts"
   const gateway = createBrowserSessionGateway({
     publicOrigin: () => origin,
     authenticate(request, action) {
-      if (action.startsWith("source:") && request.headers.authorization === "Bearer source") {
+      if (
+        action.startsWith("source:") &&
+        request.headers.authorization === "Bearer source"
+      ) {
         return { id: "source", kind: "service" };
       }
-      if (action.startsWith("viewer:") && request.headers.authorization === "Bearer viewer") {
+      if (
+        action.startsWith("viewer:") &&
+        request.headers.authorization === "Bearer viewer"
+      ) {
         return { id: "viewer", kind: "user" };
       }
       return null;
     },
     authorize: () => true,
   });
-  await new Promise((resolve) => gateway.server.listen(0, "127.0.0.1", resolve));
+  await new Promise((resolve) =>
+    gateway.server.listen(0, "127.0.0.1", resolve),
+  );
   const gatewayAddress = gateway.server.address();
   assert.ok(gatewayAddress && typeof gatewayAddress === "object");
   origin = `http://127.0.0.1:${gatewayAddress.port}`;
@@ -302,7 +366,10 @@ test("resolves a fresh local stream URL after the agent-browser stream restarts"
     );
     assert.equal(response.status, 200);
     const resolution = await response.json();
-    viewer = new WebSocket(resolution.connection.url, resolution.connection.protocols);
+    viewer = new WebSocket(
+      resolution.connection.url,
+      resolution.connection.protocols,
+    );
     await frameWithMarker(viewer, 1);
 
     secondLocal = await localStream(2);
@@ -329,25 +396,29 @@ async function localStream(marker) {
   server.on("connection", (socket) => {
     clients.add(socket);
     socket.once("close", () => clients.delete(socket));
-    socket.send(JSON.stringify({
-      type: "status",
-      connected: true,
-      screencasting: true,
-      viewportWidth: 1280,
-      viewportHeight: 800,
-    }));
-    socket.send(JSON.stringify({
-      type: "frame",
-      data: Buffer.from([0xff, 0xd8, marker, 0xff, 0xd9]).toString("base64"),
-      metadata: {
-        deviceWidth: 1280,
-        deviceHeight: 800,
-        pageScaleFactor: 1,
-        offsetTop: 0,
-        scrollOffsetX: 0,
-        scrollOffsetY: 0,
-      },
-    }));
+    socket.send(
+      JSON.stringify({
+        type: "status",
+        connected: true,
+        screencasting: true,
+        viewportWidth: 1280,
+        viewportHeight: 800,
+      }),
+    );
+    socket.send(
+      JSON.stringify({
+        type: "frame",
+        data: Buffer.from([0xff, 0xd8, marker, 0xff, 0xd9]).toString("base64"),
+        metadata: {
+          deviceWidth: 1280,
+          deviceHeight: 800,
+          pageScaleFactor: 1,
+          offsetTop: 0,
+          scrollOffsetX: 0,
+          scrollOffsetY: 0,
+        },
+      }),
+    );
   });
   return {
     url: `ws://127.0.0.1:${address.port}`,

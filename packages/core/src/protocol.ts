@@ -130,44 +130,49 @@ export function parseAgentBrowserMessage(
     case "status":
       return parseStatus(decoded);
     case "url":
-      return typeof decoded.url === "string" && optionalNumber(decoded.timestamp)
-        ? decoded as unknown as AgentBrowserUrlMessage
+      return typeof decoded.url === "string" &&
+        optionalNumber(decoded.timestamp)
+        ? (decoded as unknown as AgentBrowserUrlMessage)
         : null;
     case "cursor":
       return typeof decoded.cursor === "string"
-        ? decoded as unknown as AgentBrowserCursorMessage
+        ? (decoded as unknown as AgentBrowserCursorMessage)
         : null;
     case "command":
       return stringFields(decoded, "action", "id") &&
-        isRecord(decoded.params) && finite(decoded.timestamp)
-        ? decoded as unknown as AgentBrowserCommandMessage
+        isRecord(decoded.params) &&
+        finite(decoded.timestamp)
+        ? (decoded as unknown as AgentBrowserCommandMessage)
         : null;
     case "result":
       return stringFields(decoded, "id", "action") &&
         typeof decoded.success === "boolean" &&
-        finite(decoded.duration_ms) && finite(decoded.timestamp)
-        ? decoded as unknown as AgentBrowserResultMessage
+        finite(decoded.duration_ms) &&
+        finite(decoded.timestamp)
+        ? (decoded as unknown as AgentBrowserResultMessage)
         : null;
     case "activity":
       return parseActivity(decoded);
     case "console":
       return stringFields(decoded, "level", "text") && finite(decoded.timestamp)
-        ? decoded as unknown as AgentBrowserConsoleMessage
+        ? (decoded as unknown as AgentBrowserConsoleMessage)
         : null;
     case "page_error":
       return typeof decoded.text === "string" &&
-        nullableFinite(decoded.line) && nullableFinite(decoded.column) &&
+        nullableFinite(decoded.line) &&
+        nullableFinite(decoded.column) &&
         finite(decoded.timestamp)
-        ? decoded as unknown as AgentBrowserPageErrorMessage
+        ? (decoded as unknown as AgentBrowserPageErrorMessage)
         : null;
     case "error":
       return typeof decoded.message === "string"
-        ? decoded as unknown as AgentBrowserErrorMessage
+        ? (decoded as unknown as AgentBrowserErrorMessage)
         : null;
     case "tabs":
-      return Array.isArray(decoded.tabs) && decoded.tabs.every(isTab) &&
+      return Array.isArray(decoded.tabs) &&
+        decoded.tabs.every(isTab) &&
         finite(decoded.timestamp)
-        ? decoded as unknown as AgentBrowserTabsMessage
+        ? (decoded as unknown as AgentBrowserTabsMessage)
         : null;
     default:
       return null;
@@ -182,7 +187,10 @@ export function describeAgentBrowserCommand(
   action: string,
   params: Record<string, unknown>,
 ): string {
-  const normalized = action.toLowerCase().replaceAll("_", "").replaceAll("-", "");
+  const normalized = action
+    .toLowerCase()
+    .replaceAll("_", "")
+    .replaceAll("-", "");
   switch (normalized) {
     case "open":
     case "goto":
@@ -240,7 +248,9 @@ export function describeAgentBrowserCommand(
   }
 }
 
-function parseActivity(value: Record<string, unknown>): BrowserSessionActivityMessage | null {
+function parseActivity(
+  value: Record<string, unknown>,
+): BrowserSessionActivityMessage | null {
   return value.v === 1 &&
     typeof value.id === "string" &&
     typeof value.action === "string" &&
@@ -257,25 +267,33 @@ function parseActivity(value: Record<string, unknown>): BrowserSessionActivityMe
     (value.agentCursor === undefined || validAgentCursor(value.agentCursor)) &&
     (value.success === undefined || typeof value.success === "boolean") &&
     (value.durationMs === undefined || nonNegativeInteger(value.durationMs))
-    ? value as unknown as BrowserSessionActivityMessage
+    ? (value as unknown as BrowserSessionActivityMessage)
     : null;
 }
 
 function validAgentCursor(value: unknown): boolean {
-  if (!isRecord(value) || !unitCoordinate(value.x) || !unitCoordinate(value.y)) return false;
-  return (value.label === undefined || boundedNonEmptyString(value.label, 80)) &&
+  if (!isRecord(value) || !unitCoordinate(value.x) || !unitCoordinate(value.y))
+    return false;
+  return (
+    (value.label === undefined || boundedNonEmptyString(value.label, 80)) &&
     (value.pressed === undefined || typeof value.pressed === "boolean") &&
     (value.typing === undefined || typeof value.typing === "boolean") &&
     (value.visible === undefined || typeof value.visible === "boolean") &&
-    (value.variant === undefined || value.variant === "light" || value.variant === "dark") &&
-    (value.size === undefined || finite(value.size) && value.size > 0 && value.size <= 256) &&
-    (value.backgroundColor === undefined || boundedNonEmptyString(value.backgroundColor, 128));
+    (value.variant === undefined ||
+      value.variant === "light" ||
+      value.variant === "dark") &&
+    (value.size === undefined ||
+      (finite(value.size) && value.size > 0 && value.size <= 256)) &&
+    (value.backgroundColor === undefined ||
+      boundedNonEmptyString(value.backgroundColor, 128))
+  );
 }
 
 function destinationLabel(value: unknown): string {
   if (typeof value !== "string") return "Opening a page";
   try {
-    const hostname = new URL(value.includes("://") ? value : `https://${value}`).hostname;
+    const hostname = new URL(value.includes("://") ? value : `https://${value}`)
+      .hostname;
     return hostname ? `Opening ${hostname}` : "Opening a page";
   } catch {
     return "Opening a page";
@@ -292,7 +310,9 @@ function humanizeAction(action: string): string {
   return words || "browser action";
 }
 
-function parseFrame(value: Record<string, unknown>): AgentBrowserFrameMessage | null {
+function parseFrame(
+  value: Record<string, unknown>,
+): AgentBrowserFrameMessage | null {
   if (typeof value.data !== "string" || !isRecord(value.metadata)) return null;
   const metadata = value.metadata;
   if (
@@ -303,25 +323,33 @@ function parseFrame(value: Record<string, unknown>): AgentBrowserFrameMessage | 
     !finite(metadata.scrollOffsetX) ||
     !finite(metadata.scrollOffsetY) ||
     !optionalNumber(metadata.timestamp)
-  ) return null;
+  )
+    return null;
   return value as unknown as AgentBrowserFrameMessage;
 }
 
-function parseStatus(value: Record<string, unknown>): AgentBrowserStatusMessage | null {
+function parseStatus(
+  value: Record<string, unknown>,
+): AgentBrowserStatusMessage | null {
   return typeof value.connected === "boolean" &&
     typeof value.screencasting === "boolean" &&
-    positive(value.viewportWidth) && positive(value.viewportHeight) &&
+    positive(value.viewportWidth) &&
+    positive(value.viewportHeight) &&
     (value.engine === undefined || typeof value.engine === "string") &&
     (value.recording === undefined || typeof value.recording === "boolean")
-    ? value as unknown as AgentBrowserStatusMessage
+    ? (value as unknown as AgentBrowserStatusMessage)
     : null;
 }
 
 function isTab(value: unknown): value is AgentBrowserTabInfo {
-  return isRecord(value) &&
+  return (
+    isRecord(value) &&
     stringFields(value, "tabId", "title", "url", "type") &&
-    (value.label === undefined || value.label === null || typeof value.label === "string") &&
-    typeof value.active === "boolean";
+    (value.label === undefined ||
+      value.label === null ||
+      typeof value.label === "string") &&
+    typeof value.active === "boolean"
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -336,14 +364,17 @@ function unitCoordinate(value: unknown): value is number {
   return finite(value) && value >= 0 && value <= 1;
 }
 
-function boundedNonEmptyString(value: unknown, maximum: number): value is string {
-  return typeof value === "string" && value.length > 0 && value.length <= maximum;
+function boundedNonEmptyString(
+  value: unknown,
+  maximum: number,
+): value is string {
+  return (
+    typeof value === "string" && value.length > 0 && value.length <= maximum
+  );
 }
 
 function nonNegativeInteger(value: unknown): value is number {
-  return typeof value === "number" &&
-    Number.isSafeInteger(value) &&
-    value >= 0;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
 function positive(value: unknown): value is number {

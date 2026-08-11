@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
-const allowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS?.split(",").filter(Boolean);
+const allowedDevOrigins =
+  process.env.NEXT_ALLOWED_DEV_ORIGINS?.split(",").filter(Boolean);
 
 export default {
   allowedDevOrigins,

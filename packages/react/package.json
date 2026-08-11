@@ -40,6 +40,8 @@
   },
   "scripts": {
     "build": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/shaders build && tsup src/index.tsx --clean --format esm --dts --external react --external react-dom --external @browser-ui/core --external @browser-ui/shaders && node scripts/finalize-styles.mjs",
+    "format": "prettier --check . --ignore-path ../../.gitignore --ignore-path ../../.prettierignore",
+    "lint": "eslint --flag unstable_native_nodejs_ts_config",
     "prepack": "pnpm run build",
     "test": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/shaders build && vitest run",
     "typecheck": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/shaders build && tsc --noEmit"
@@ -48,12 +50,17 @@
     "access": "public"
   },
   "devDependencies": {
+    "@browser-ui/eslint-config": "workspace:*",
+    "@browser-ui/prettier-config": "workspace:*",
+    "@browser-ui/tsconfig": "workspace:*",
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "eslint": "catalog:",
     "jsdom": "^26.1.0",
+    "prettier": "catalog:",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
@@ -62,5 +69,6 @@
     "@browser-ui/core": "workspace:^",
     "@browser-ui/shaders": "workspace:^",
     "motion": "^12.42.2"
-  }
+  },
+  "prettier": "@browser-ui/prettier-config"
 }

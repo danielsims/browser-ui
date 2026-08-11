@@ -102,7 +102,8 @@ export function isBrowserSessionReleaseRequest(
   value: unknown,
 ): value is BrowserSessionReleaseRequest {
   if (!record(value)) return false;
-  return value.version === BROWSER_SESSION_LIFECYCLE_VERSION &&
+  return (
+    value.version === BROWSER_SESSION_LIFECYCLE_VERSION &&
     boundedIdentifier(value.releaseId) &&
     boundedIdentifier(value.sessionId) &&
     browserSessionReleaseOutcomes.includes(
@@ -110,35 +111,48 @@ export function isBrowserSessionReleaseRequest(
     ) &&
     optionalBoundedString(value.label, 160) &&
     optionalBoundedString(value.title, 256) &&
-    optionalSafeHttpURL(value.url);
+    optionalSafeHttpURL(value.url)
+  );
 }
 
 export function isBrowserSessionReleaseReceipt(
   value: unknown,
 ): value is BrowserSessionReleaseReceipt {
   if (!record(value)) return false;
-  return value.status === "released" &&
+  return (
+    value.status === "released" &&
     typeof value.releasedAt === "string" &&
     Number.isFinite(Date.parse(value.releasedAt)) &&
-    isBrowserSessionReleaseRequest(value);
+    isBrowserSessionReleaseRequest(value)
+  );
 }
 
-export function isBrowserSessionEndRequest(value: unknown): value is BrowserSessionEndRequest {
+export function isBrowserSessionEndRequest(
+  value: unknown,
+): value is BrowserSessionEndRequest {
   if (!record(value)) return false;
-  return value.version === BROWSER_SESSION_LIFECYCLE_VERSION &&
+  return (
+    value.version === BROWSER_SESSION_LIFECYCLE_VERSION &&
     boundedIdentifier(value.sessionId) &&
     boundedIdentifier(value.clientInstanceId) &&
-    browserSessionEndReasons.includes(value.reason as BrowserSessionEndReason);
+    browserSessionEndReasons.includes(value.reason as BrowserSessionEndReason)
+  );
 }
 
-export function isBrowserSessionEndReceipt(value: unknown): value is BrowserSessionEndReceipt {
+export function isBrowserSessionEndReceipt(
+  value: unknown,
+): value is BrowserSessionEndReceipt {
   if (!record(value)) return false;
-  return value.version === BROWSER_SESSION_LIFECYCLE_VERSION &&
+  return (
+    value.version === BROWSER_SESSION_LIFECYCLE_VERSION &&
     boundedIdentifier(value.sessionId) &&
     value.status === "ended" &&
-    browserSessionEndReasons.includes(value.reason as BrowserSessionEndReason) &&
+    browserSessionEndReasons.includes(
+      value.reason as BrowserSessionEndReason,
+    ) &&
     typeof value.endedAt === "string" &&
-    Number.isFinite(Date.parse(value.endedAt));
+    Number.isFinite(Date.parse(value.endedAt))
+  );
 }
 
 /** Create a fresh authenticated HTTP request for every termination attempt. */
@@ -147,7 +161,6 @@ export function createHttpBrowserSessionTerminator(
 ): BrowserSessionTerminator {
   const origin = normalizeLifecycleGatewayOrigin(options.gatewayOrigin);
   const fetchImplementation = options.fetch ?? globalThis.fetch;
-  if (!fetchImplementation) throw new Error("A fetch implementation is required.");
 
   return async (request) => {
     if (!isBrowserSessionEndRequest(request)) {
@@ -158,7 +171,11 @@ export function createHttpBrowserSessionTerminator(
       origin,
     ).toString();
     const body = JSON.stringify(request);
-    const authorization = await options.authorize({ body, method: "POST", url });
+    const authorization = await options.authorize({
+      body,
+      method: "POST",
+      url,
+    });
     const response = await fetchImplementation(url, {
       method: "POST",
       body,
@@ -168,11 +185,15 @@ export function createHttpBrowserSessionTerminator(
       },
     });
     if (!response.ok) {
-      throw new Error(`Browser session termination failed with HTTP ${response.status}.`);
+      throw new Error(
+        `Browser session termination failed with HTTP ${response.status}.`,
+      );
     }
     const receipt: unknown = await response.json();
     if (!isBrowserSessionEndReceipt(receipt)) {
-      throw new Error("Browser session termination returned an invalid receipt.");
+      throw new Error(
+        "Browser session termination returned an invalid receipt.",
+      );
     }
     return receipt;
   };
@@ -180,9 +201,14 @@ export function createHttpBrowserSessionTerminator(
 
 function normalizeLifecycleGatewayOrigin(value: string): string {
   const url = new URL(value);
-  if ((url.protocol !== "https:" && url.protocol !== "http:") ||
-      url.username || url.password || url.search || url.hash ||
-      (url.pathname !== "/" && url.pathname !== "")) {
+  if (
+    (url.protocol !== "https:" && url.protocol !== "http:") ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    (url.pathname !== "/" && url.pathname !== "")
+  ) {
     throw new TypeError("gatewayOrigin must be a clean HTTP(S) origin.");
   }
   return url.origin;
@@ -193,8 +219,10 @@ function boundedIdentifier(value: unknown): value is string {
 }
 
 function optionalBoundedString(value: unknown, maximumLength: number): boolean {
-  return value === undefined ||
-    (typeof value === "string" && value.length <= maximumLength);
+  return (
+    value === undefined ||
+    (typeof value === "string" && value.length <= maximumLength)
+  );
 }
 
 function optionalSafeHttpURL(value: unknown): boolean {
@@ -202,8 +230,11 @@ function optionalSafeHttpURL(value: unknown): boolean {
   if (typeof value !== "string" || value.length > 2_048) return false;
   try {
     const url = new URL(value);
-    return (url.protocol === "https:" || url.protocol === "http:") &&
-      !url.username && !url.password;
+    return (
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      !url.username &&
+      !url.password
+    );
   } catch {
     return false;
   }

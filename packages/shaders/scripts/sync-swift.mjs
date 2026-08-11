@@ -12,7 +12,9 @@ import {
 import { metalLibrarySource } from "./metal-source.mjs";
 import { swiftConfigurationSource } from "./swift-source.mjs";
 
-const targetArgument = process.argv.slice(2).find((argument) => argument !== "--");
+const targetArgument = process.argv
+  .slice(2)
+  .find((argument) => argument !== "--");
 const target = targetArgument
   ? pathToFileURL(`${resolve(targetArgument)}/`)
   : new URL("../../swift/Sources/BrowserUI/", import.meta.url);

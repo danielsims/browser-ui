@@ -1,0 +1,7 @@
+**/.expo/**
+**/.next/**
+**/.next-dev-*/**
+**/coverage/**
+**/dist/**
+packages/flutter/**
+pnpm-lock.yaml

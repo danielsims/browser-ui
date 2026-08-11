@@ -1,5 +1,6 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { Sandbox } from "@vercel/sandbox";
+
 import { SANDBOX_PACKAGE_JSON, SANDBOX_WORKER_SOURCE } from "./worker-source";
 
 const GATEWAY_PORT = 8787;
@@ -28,8 +29,14 @@ export interface DemoSession {
   viewport: { width: number; height: number };
 }
 
-export async function createDemoSession(key: string, signal?: AbortSignal): Promise<DemoSession> {
-  if (!isHostedDeployment() && process.env.ALLOW_LOCAL_SANDBOX_USAGE !== "true") {
+export async function createDemoSession(
+  key: string,
+  signal?: AbortSignal,
+): Promise<DemoSession> {
+  if (
+    !isHostedDeployment() &&
+    process.env.ALLOW_LOCAL_SANDBOX_USAGE !== "true"
+  ) {
     throw new DemoAccessError(
       "Deploy your own copy to run this demo with your Vercel resources",
       412,
@@ -56,8 +63,16 @@ export async function createDemoSession(key: string, signal?: AbortSignal): Prom
       { path: "package.json", content: Buffer.from(SANDBOX_PACKAGE_JSON) },
       { path: "worker.mjs", content: Buffer.from(SANDBOX_WORKER_SOURCE) },
     ]);
-    await runChecked(sandbox, "npm", ["install", "--omit=dev", "--no-audit", "--no-fund"]);
-    await runChecked(sandbox, "./node_modules/.bin/agent-browser", ["install", "--with-deps"]);
+    await runChecked(sandbox, "npm", [
+      "install",
+      "--omit=dev",
+      "--no-audit",
+      "--no-fund",
+    ]);
+    await runChecked(sandbox, "./node_modules/.bin/agent-browser", [
+      "install",
+      "--with-deps",
+    ]);
     await sandbox.fs.writeFile(MODE_PATH, "agent");
 
     const worker = await sandbox.runCommand({
@@ -96,7 +111,12 @@ export async function getDemoSession(key: string): Promise<{
   if (!metadata.sessionId || !metadata.title || !metadata.viewport) {
     throw new Error(metadata.error ?? "Sandbox browser is not ready");
   }
-  return { metadata: metadata as Required<Pick<SandboxMetadata, "sessionId" | "title" | "viewport">>, sandbox };
+  return {
+    metadata: metadata as Required<
+      Pick<SandboxMetadata, "sessionId" | "title" | "viewport">
+    >,
+    sandbox,
+  };
 }
 
 export async function deleteDemoSession(key: string): Promise<void> {
@@ -104,7 +124,9 @@ export async function deleteDemoSession(key: string): Promise<void> {
   await sandbox.delete();
 }
 
-export async function touchDemoSession(sandbox: Sandbox): Promise<string | undefined> {
+export async function touchDemoSession(
+  sandbox: Sandbox,
+): Promise<string | undefined> {
   return withSandboxLock(sandbox, ACTIVITY_LOCK_PATH, async () => {
     const fresh = await Sandbox.get({ name: sandbox.name, resume: false });
     const expiresAt = fresh.expiresAt?.getTime();
@@ -115,7 +137,10 @@ export async function touchDemoSession(sandbox: Sandbox): Promise<string | undef
   });
 }
 
-export function withSessionLock<T>(sandbox: Sandbox, operation: () => Promise<T>): Promise<T> {
+export function withSessionLock<T>(
+  sandbox: Sandbox,
+  operation: () => Promise<T>,
+): Promise<T> {
   return withSandboxLock(sandbox, SESSION_LOCK_PATH, operation);
 }
 
@@ -138,25 +163,38 @@ export async function gatewayRequest(
 }
 
 export async function readMode(sandbox: Sandbox): Promise<"agent" | "human"> {
-  const value = await sandbox.fs.readFile(MODE_PATH, "utf8").catch(() => "agent");
+  const value = await sandbox.fs
+    .readFile(MODE_PATH, "utf8")
+    .catch(() => "agent");
   return value.trim() === "human" ? "human" : "agent";
 }
 
-export async function writeMode(sandbox: Sandbox, mode: "agent" | "human"): Promise<void> {
+export async function writeMode(
+  sandbox: Sandbox,
+  mode: "agent" | "human",
+): Promise<void> {
   await sandbox.fs.writeFile(MODE_PATH, mode);
 }
 
-export async function readAgentCommand(sandbox: Sandbox): Promise<string | null> {
+export async function readAgentCommand(
+  sandbox: Sandbox,
+): Promise<string | null> {
   const value = await sandbox.fs.readFile(COMMAND_PATH, "utf8").catch(() => "");
   return value.trim() || null;
 }
 
-export async function writeAgentCommand(sandbox: Sandbox, commandId: string): Promise<void> {
+export async function writeAgentCommand(
+  sandbox: Sandbox,
+  commandId: string,
+): Promise<void> {
   await sandbox.fs.writeFile(COMMAND_PATH, commandId);
 }
 
-export async function clearAgentCommand(sandbox: Sandbox, commandId: string): Promise<void> {
-  if (await readAgentCommand(sandbox) === commandId) {
+export async function clearAgentCommand(
+  sandbox: Sandbox,
+  commandId: string,
+): Promise<void> {
+  if ((await readAgentCommand(sandbox)) === commandId) {
     await sandbox.fs.writeFile(COMMAND_PATH, "");
   }
 }
@@ -170,9 +208,18 @@ export function validateKey(key: unknown): asserts key is string {
 export function validateDemoAccess(accessCode: unknown): void {
   if (!isHostedDeployment()) return;
   const expected = process.env.DEMO_ACCESS_CODE?.trim();
-  if (!expected) throw new DemoAccessError("Set DEMO_ACCESS_CODE before using this deployment", 503, "configuration_required");
+  if (!expected)
+    throw new DemoAccessError(
+      "Set DEMO_ACCESS_CODE before using this deployment",
+      503,
+      "configuration_required",
+    );
   if (typeof accessCode !== "string" || !sameSecret(accessCode, expected)) {
-    throw new DemoAccessError("Incorrect deployment access code", 401, "access_required");
+    throw new DemoAccessError(
+      "Incorrect deployment access code",
+      401,
+      "access_required",
+    );
   }
 }
 
@@ -182,8 +229,11 @@ export function aiProxyToken(key: string): string {
 }
 
 export function isSandboxNotFound(error: unknown): boolean {
-  if (!error || typeof error !== "object" || !("response" in error)) return false;
-  return (error as { response?: { status?: unknown } }).response?.status === 404;
+  if (!error || typeof error !== "object" || !("response" in error))
+    return false;
+  return (
+    (error as { response?: { status?: unknown } }).response?.status === 404
+  );
 }
 
 function sandboxName(key: string): string {
@@ -195,27 +245,42 @@ function token(key: string, audience: "ai" | "source" | "viewer"): string {
 }
 
 function isHostedDeployment(): boolean {
-  return process.env.VERCEL === "1" && !!process.env.VERCEL_REGION && (
-    process.env.VERCEL_ENV === "production" || process.env.VERCEL_ENV === "preview"
+  return (
+    process.env.VERCEL === "1" &&
+    !!process.env.VERCEL_REGION &&
+    (process.env.VERCEL_ENV === "production" ||
+      process.env.VERCEL_ENV === "preview")
   );
 }
 
 function sameSecret(actual: string, expected: string): boolean {
   const actualBytes = Buffer.from(actual);
   const expectedBytes = Buffer.from(expected);
-  return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
+  return (
+    actualBytes.length === expectedBytes.length &&
+    timingSafeEqual(actualBytes, expectedBytes)
+  );
 }
 
 export class DemoAccessError extends Error {
-  constructor(message: string, readonly status: number, readonly code: string) {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string,
+  ) {
     super(message);
   }
 }
 
-async function runChecked(sandbox: Sandbox, cmd: string, args: string[]): Promise<void> {
+async function runChecked(
+  sandbox: Sandbox,
+  cmd: string,
+  args: string[],
+): Promise<void> {
   const result = await sandbox.runCommand({ cmd, args, cwd: SANDBOX_ROOT });
   if (result.exitCode === 0) return;
-  const detail = (await result.stderr()).trim() || (await result.stdout()).trim();
+  const detail =
+    (await result.stderr()).trim() || (await result.stdout()).trim();
   throw new Error(detail || `${cmd} failed with exit code ${result.exitCode}`);
 }
 
@@ -235,24 +300,36 @@ async function withSandboxLock<T>(
       if (!hasCode(error, "EEXIST")) throw error;
       const stats = await sandbox.fs.stat(path).catch(() => null);
       if (stats && Date.now() - stats.mtimeMs > 30_000) {
-        await sandbox.fs.rm(path, { force: true, recursive: true }).catch(() => undefined);
+        await sandbox.fs
+          .rm(path, { force: true, recursive: true })
+          .catch(() => undefined);
       }
-      if (Date.now() >= deadline) throw new Error("The sandbox is busy. Try again.");
+      if (Date.now() >= deadline)
+        throw new Error("The sandbox is busy. Try again.");
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }
   try {
     return await operation();
   } finally {
-    const currentOwner = await sandbox.fs.readFile(`${path}/owner`, "utf8").catch(() => "");
+    const currentOwner = await sandbox.fs
+      .readFile(`${path}/owner`, "utf8")
+      .catch(() => "");
     if (currentOwner.trim() === owner) {
-      await sandbox.fs.rm(path, { force: true, recursive: true }).catch(() => undefined);
+      await sandbox.fs
+        .rm(path, { force: true, recursive: true })
+        .catch(() => undefined);
     }
   }
 }
 
 function hasCode(error: unknown, code: string): boolean {
-  return !!error && typeof error === "object" && "code" in error && error.code === code;
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === code
+  );
 }
 
 async function readMetadata(sandbox: Sandbox): Promise<SandboxMetadata> {
@@ -268,7 +345,8 @@ async function waitForMetadata(
   for (let attempt = 0; attempt < 120; attempt += 1) {
     const metadata = await readMetadata(sandbox);
     if (metadata.error) throw new Error(metadata.error);
-    if (metadata.sessionId && metadata.title && metadata.viewport) return metadata;
+    if (metadata.sessionId && metadata.title && metadata.viewport)
+      return metadata;
     await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
   await worker.kill("SIGTERM").catch(() => undefined);

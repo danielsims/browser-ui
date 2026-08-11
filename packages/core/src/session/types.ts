@@ -1,5 +1,6 @@
 import type { BrowserSessionCapability } from "../access.js";
 import type { BrowserViewportSize } from "../geometry.js";
+
 export type { BrowserSessionCapability } from "../access.js";
 
 export const BROWSER_SESSION_PROTOCOL = "browser-session.v1";

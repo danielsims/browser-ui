@@ -1,23 +1,28 @@
 import { randomUUID } from "node:crypto";
+import type { RawData } from "ws";
+import WebSocket from "ws";
+
+import type {
+  BrowserSessionActivityMessage,
+  BrowserSessionCapability,
+  BrowserSessionDescriptor,
+  BrowserSessionEndReason,
+  BrowserSessionEndReceipt,
+  BrowserSessionFrameEncoding,
+  BrowserSessionFrameMessage,
+  BrowserSessionResolvedAccess,
+  BrowserSessionSnapshotMessage,
+  BrowserSessionStatusMessage,
+  BrowserSourceFrameMessage,
+} from "@browser-ui/core";
 import {
+  BROWSER_SESSION_VERSION,
   decodeBrowserSessionBinaryFrame,
   encodeBrowserSessionBinaryFrame,
-  BROWSER_SESSION_VERSION,
   parseBrowserSourceMessage,
   parseBrowserViewerMessage,
-  type BrowserSessionDescriptor,
-  type BrowserSessionEndReason,
-  type BrowserSessionEndReceipt,
-  type BrowserSessionActivityMessage,
-  type BrowserSessionCapability,
-  type BrowserSessionFrameMessage,
-  type BrowserSessionFrameEncoding,
-  type BrowserSessionResolvedAccess,
-  type BrowserSessionSnapshotMessage,
-  type BrowserSessionStatusMessage,
-  type BrowserSourceFrameMessage,
 } from "@browser-ui/core";
-import WebSocket, { type RawData } from "ws";
+
 import type { BrowserGatewayPrincipal } from "./auth.js";
 
 interface ViewerState {
@@ -64,7 +69,14 @@ export interface BrowserSessionActorOptions {
 
 export type BrowserControlOperationResult =
   | { ok: true; access: BrowserSessionResolvedAccess }
-  | { ok: false; error: "viewer_not_connected" | "control_busy" | "stale_lease" | "session_unavailable" };
+  | {
+      ok: false;
+      error:
+        | "viewer_not_connected"
+        | "control_busy"
+        | "stale_lease"
+        | "session_unavailable";
+    };
 
 export class BrowserSessionActor {
   readonly producer: BrowserGatewayPrincipal;
@@ -149,7 +161,8 @@ export class BrowserSessionActor {
       if (
         existing.principalId === identity.principalId &&
         existing.clientInstanceId === identity.clientInstanceId
-      ) existing.socket.close(1000, "Viewer reconnected");
+      )
+        existing.socket.close(1000, "Viewer reconnected");
     }
     const viewer: ViewerState = {
       ...identity,
@@ -236,16 +249,20 @@ export class BrowserSessionActor {
     return receipt;
   }
 
-  acquireControl(principalId: string, clientInstanceId: string): BrowserControlOperationResult {
+  acquireControl(
+    principalId: string,
+    clientInstanceId: string,
+  ): BrowserControlOperationResult {
     this.#expireControlIfNeeded();
     if (this.#source?.readyState !== WebSocket.OPEN) {
       return { ok: false, error: "session_unavailable" };
     }
-    const viewer = [...this.#viewers.values()].find((candidate) =>
-      candidate.principalId === principalId &&
-      candidate.clientInstanceId === clientInstanceId
+    const viewer = [...this.#viewers.values()].find(
+      (candidate) =>
+        candidate.principalId === principalId &&
+        candidate.clientInstanceId === clientInstanceId,
     );
-    if (!viewer || !viewer.capabilities.includes("control")) {
+    if (!viewer?.capabilities.includes("control")) {
       return { ok: false, error: "viewer_not_connected" };
     }
     if (this.#controlLease && this.#controlLease.holder !== viewer) {
@@ -273,16 +290,19 @@ export class BrowserSessionActor {
     leaseId: string | undefined,
   ): BrowserControlOperationResult {
     this.#expireControlIfNeeded();
-    const viewer = [...this.#viewers.values()].find((candidate) =>
-      candidate.principalId === principalId &&
-      candidate.clientInstanceId === clientInstanceId
+    const viewer = [...this.#viewers.values()].find(
+      (candidate) =>
+        candidate.principalId === principalId &&
+        candidate.clientInstanceId === clientInstanceId,
     );
     if (!viewer) return { ok: false, error: "viewer_not_connected" };
-    if (!this.#controlLease) return { ok: true, access: this.#resolvedAccess(viewer) };
+    if (!this.#controlLease)
+      return { ok: true, access: this.#resolvedAccess(viewer) };
     if (
       this.#controlLease.holder !== viewer ||
       this.#controlLease.id !== leaseId
-    ) return { ok: false, error: "stale_lease" };
+    )
+      return { ok: false, error: "stale_lease" };
     this.#releaseControlInternal();
     return { ok: true, access: this.#resolvedAccess(viewer) };
   }
@@ -293,9 +313,10 @@ export class BrowserSessionActor {
     capabilities: readonly BrowserSessionCapability[],
     sensitive = false,
   ): BrowserSessionResolvedAccess {
-    const viewer = [...this.#viewers.values()].find((candidate) =>
-      candidate.principalId === principalId &&
-      candidate.clientInstanceId === clientInstanceId
+    const viewer = [...this.#viewers.values()].find(
+      (candidate) =>
+        candidate.principalId === principalId &&
+        candidate.clientInstanceId === clientInstanceId,
     );
     return viewer
       ? this.#resolvedAccess(viewer)
@@ -316,7 +337,8 @@ export class BrowserSessionActor {
         this.#publishFrame(message);
         break;
       case "source.state": {
-        const viewportChanged = message.viewport.width !== this.#descriptor.viewport.width ||
+        const viewportChanged =
+          message.viewport.width !== this.#descriptor.viewport.width ||
           message.viewport.height !== this.#descriptor.viewport.height;
         if (viewportChanged) this.#viewportRevision += 1;
         this.#descriptor = { ...this.#descriptor, viewport: message.viewport };
@@ -344,9 +366,15 @@ export class BrowserSessionActor {
           label: message.label,
           phase: message.phase,
           timestamp: message.timestamp,
-          ...(message.agentCursor === undefined ? {} : { agentCursor: message.agentCursor }),
-          ...(message.success === undefined ? {} : { success: message.success }),
-          ...(message.durationMs === undefined ? {} : { durationMs: message.durationMs }),
+          ...(message.agentCursor === undefined
+            ? {}
+            : { agentCursor: message.agentCursor }),
+          ...(message.success === undefined
+            ? {}
+            : { success: message.success }),
+          ...(message.durationMs === undefined
+            ? {}
+            : { durationMs: message.durationMs }),
         };
         if (activity.phase === "started") this.#activity = activity;
         else if (this.#activity?.id === activity.id) this.#activity = null;
@@ -368,16 +396,19 @@ export class BrowserSessionActor {
       this.#source?.close(1008, "Invalid binary source frame");
       return;
     }
-    this.#publishFrame({
-      v: BROWSER_SESSION_VERSION,
-      type: "source.frame",
-      codec: "image/jpeg",
-      data: "",
-      width: decoded.header.width,
-      height: decoded.header.height,
-      capturedAt: decoded.header.capturedAt,
-      metadata: decoded.header.metadata,
-    }, decoded.jpeg);
+    this.#publishFrame(
+      {
+        v: BROWSER_SESSION_VERSION,
+        type: "source.frame",
+        codec: "image/jpeg",
+        data: "",
+        width: decoded.header.width,
+        height: decoded.header.height,
+        capturedAt: decoded.header.capturedAt,
+        metadata: decoded.header.metadata,
+      },
+      decoded.jpeg,
+    );
   }
 
   #publishFrame(source: BrowserSourceFrameMessage, binaryJpeg?: Uint8Array) {
@@ -387,7 +418,8 @@ export class BrowserSessionActor {
       this.#source?.close(1008, "Invalid JPEG frame");
       return;
     }
-    const viewportChanged = source.width !== this.#descriptor.viewport.width ||
+    const viewportChanged =
+      source.width !== this.#descriptor.viewport.width ||
       source.height !== this.#descriptor.viewport.height;
     if (viewportChanged) {
       this.#viewportRevision += 1;
@@ -396,14 +428,16 @@ export class BrowserSessionActor {
         viewport: { width: source.width, height: source.height },
       };
     }
-    if (this.#descriptor.status !== "live" || viewportChanged) this.#updateStatus("live");
+    if (this.#descriptor.status !== "live" || viewportChanged)
+      this.#updateStatus("live");
     this.#frameSequence += 1;
     const receivedAt = Date.now();
-    const capturedAt = source.capturedAt !== undefined &&
-        source.capturedAt >= receivedAt - 60_000 &&
-        source.capturedAt <= receivedAt + 5_000
-      ? source.capturedAt
-      : receivedAt;
+    const capturedAt =
+      source.capturedAt !== undefined &&
+      source.capturedAt >= receivedAt - 60_000 &&
+      source.capturedAt <= receivedAt + 5_000
+        ? source.capturedAt
+        : receivedAt;
     const metadata = {
       deviceWidth: source.width,
       deviceHeight: source.height,
@@ -426,18 +460,21 @@ export class BrowserSessionActor {
       viewportRevision: this.#viewportRevision,
       metadata,
     };
-    const binary = encodeBrowserSessionBinaryFrame({
-      v: frame.v,
-      type: frame.type,
-      codec: frame.codec,
-      width: frame.width,
-      height: frame.height,
-      capturedAt: frame.capturedAt,
-      sourceEpoch: frame.sourceEpoch,
-      frameSequence: frame.frameSequence,
-      viewportRevision: frame.viewportRevision,
-      metadata: frame.metadata,
-    }, jpeg);
+    const binary = encodeBrowserSessionBinaryFrame(
+      {
+        v: frame.v,
+        type: frame.type,
+        codec: frame.codec,
+        width: frame.width,
+        height: frame.height,
+        capturedAt: frame.capturedAt,
+        sourceEpoch: frame.sourceEpoch,
+        frameSequence: frame.frameSequence,
+        viewportRevision: frame.viewportRevision,
+        metadata: frame.metadata,
+      },
+      jpeg,
+    );
     this.#latestFrame = {
       binary,
       capturedAt: frame.capturedAt,
@@ -446,7 +483,8 @@ export class BrowserSessionActor {
       jsonMessage: frame,
     };
     this.#onMetric?.({ type: "source-frame", bytes: jpeg.byteLength });
-    for (const viewer of this.#viewers.values()) this.#queueLatestFrame(viewer, this.#latestFrame);
+    for (const viewer of this.#viewers.values())
+      this.#queueLatestFrame(viewer, this.#latestFrame);
   }
 
   #updateStatus(status: BrowserSessionDescriptor["status"]) {
@@ -488,7 +526,9 @@ export class BrowserSessionActor {
       sourceEpoch: this.#sourceEpoch,
       eventSequence: this.#eventSequence,
       viewport: this.#descriptor.viewport,
-      connected: this.#descriptor.status === "live" || this.#descriptor.status === "waiting",
+      connected:
+        this.#descriptor.status === "live" ||
+        this.#descriptor.status === "waiting",
       screencasting: this.#descriptor.status === "live",
       viewportWidth: this.#descriptor.viewport.width,
       viewportHeight: this.#descriptor.viewport.height,
@@ -504,11 +544,12 @@ export class BrowserSessionActor {
   }
 
   #broadcastReliable(message: unknown) {
-    for (const viewer of this.#viewers.values()) this.#send(viewer.socket, message);
+    for (const viewer of this.#viewers.values())
+      this.#send(viewer.socket, message);
   }
 
   #send(socket: WebSocket | null, message: unknown): boolean {
-    if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+    if (socket?.readyState !== WebSocket.OPEN) return false;
     if (socket.bufferedAmount > this.#maximumBufferedBytes * 2) {
       socket.close(1008, "Viewer is too slow");
       return false;
@@ -533,32 +574,35 @@ export class BrowserSessionActor {
       viewer.sendingFrame ||
       !viewer.pendingFrame ||
       viewer.socket.readyState !== WebSocket.OPEN
-    ) return;
+    )
+      return;
     if (viewer.socket.bufferedAmount > this.#maximumFrameBufferedBytes) {
-      if (!viewer.retryTimer) {
-        viewer.retryTimer = setTimeout(() => {
-          viewer.retryTimer = null;
-          this.#flushFrame(viewer);
-        }, 8);
-      }
+      viewer.retryTimer ??= setTimeout(() => {
+        viewer.retryTimer = null;
+        this.#flushFrame(viewer);
+      }, 8);
       return;
     }
     const frame = viewer.pendingFrame;
     viewer.pendingFrame = null;
     viewer.sendingFrame = true;
-    const payload = viewer.frameEncoding === "binary-jpeg"
-      ? frame.binary
-      : (frame.json ??= JSON.stringify({
-          ...frame.jsonMessage,
-          data: Buffer.from(frame.jpeg).toString("base64"),
-        }));
+    const payload =
+      viewer.frameEncoding === "binary-jpeg"
+        ? frame.binary
+        : (frame.json ??= JSON.stringify({
+            ...frame.jsonMessage,
+            data: Buffer.from(frame.jpeg).toString("base64"),
+          }));
     viewer.socket.send(payload, (error) => {
       viewer.sendingFrame = false;
       if (error) viewer.socket.close();
       else {
         this.#onMetric?.({
           type: "viewer-frame",
-          bytes: typeof payload === "string" ? Buffer.byteLength(payload) : payload.byteLength,
+          bytes:
+            typeof payload === "string"
+              ? Buffer.byteLength(payload)
+              : payload.byteLength,
           latencyMs: Math.max(0, Date.now() - frame.capturedAt),
         });
         this.#flushFrame(viewer);
@@ -596,7 +640,7 @@ export class BrowserSessionActor {
   #renewControl(viewer: ViewerState) {
     this.#expireControlIfNeeded();
     const lease = this.#controlLease;
-    if (!lease || lease.holder !== viewer) return;
+    if (lease?.holder !== viewer) return;
     if (lease.timer) clearTimeout(lease.timer);
     lease.expiresAt = Date.now() + this.#controlLeaseLifetimeMs;
     lease.timer = this.#leaseTimer(lease);
@@ -604,9 +648,12 @@ export class BrowserSessionActor {
   }
 
   #leaseTimer(lease: ActiveControlLease): ReturnType<typeof setTimeout> {
-    return setTimeout(() => {
-      if (this.#controlLease?.id === lease.id) this.#releaseControlInternal();
-    }, Math.max(1, lease.expiresAt - Date.now()));
+    return setTimeout(
+      () => {
+        if (this.#controlLease?.id === lease.id) this.#releaseControlInternal();
+      },
+      Math.max(1, lease.expiresAt - Date.now()),
+    );
   }
 
   #expireControlIfNeeded() {
@@ -626,7 +673,8 @@ export class BrowserSessionActor {
 
 function rawText(data: RawData): string {
   if (Array.isArray(data)) return Buffer.concat(data).toString("utf8");
-  if (data instanceof ArrayBuffer) return Buffer.from(new Uint8Array(data)).toString("utf8");
+  if (data instanceof ArrayBuffer)
+    return Buffer.from(new Uint8Array(data)).toString("utf8");
   return Buffer.from(data).toString("utf8");
 }
 
@@ -648,8 +696,11 @@ function decodeBase64Jpeg(encoded: string): Uint8Array | null {
   }
   if (
     bytes.byteLength < 4 ||
-    bytes[0] !== 0xff || bytes[1] !== 0xd8 ||
-    bytes[bytes.byteLength - 2] !== 0xff || bytes[bytes.byteLength - 1] !== 0xd9
-  ) return null;
+    bytes[0] !== 0xff ||
+    bytes[1] !== 0xd8 ||
+    bytes[bytes.byteLength - 2] !== 0xff ||
+    bytes[bytes.byteLength - 1] !== 0xd9
+  )
+    return null;
   return bytes;
 }

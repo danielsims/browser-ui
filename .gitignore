@@ -1,10 +1,27 @@
-node_modules
-.build
-.swiftpm
-.next
-.next-dev-*
-dist
-*.tsbuildinfo
+# deps
+node_modules/
+.pnp
+.pnp.js
+
+# builds
+dist/
+build/
+.build/
+.swiftpm/
+.next/
+.next-dev-*/
+out/
+.output/
+.turbo/
+.cache/
+
+# env
 .env*
-!.env.example
+!**/.env.example
+
+# misc
 .DS_Store
+*.log
+*.tsbuildinfo
+.vercel
+.pnpm-store/

@@ -15,6 +15,7 @@ npm install @browser-ui/react
 
 ```tsx
 import { AgentBrowser } from "@browser-ui/react";
+
 import "@browser-ui/react/styles.css"; // Optional reference theme.
 
 <AgentBrowser
@@ -31,7 +32,7 @@ import "@browser-ui/react/styles.css"; // Optional reference theme.
   onEndSession={session.end}
   showPictureInPicture
   showFullscreen
-/>
+/>;
 ```
 
 Components are unstyled by default and expose stable `bui-` classes and data
@@ -85,7 +86,7 @@ const [panel, setPanel] = useState<HTMLDivElement | null>(null);
     fullscreenTarget={panel}
     showFullscreen
   />
-</div>
+</div>;
 ```
 
 ## Host controls
@@ -95,10 +96,7 @@ visual treatment. Applications can compose their own actions into that rail
 without moving workflow behavior into the package:
 
 ```tsx
-import {
-  Browser,
-  BrowserDisplayTrigger,
-} from "@browser-ui/react";
+import { Browser, BrowserDisplayTrigger } from "@browser-ui/react";
 
 <Browser
   streamUrl={session.streamUrl}
@@ -112,7 +110,7 @@ import {
     </BrowserDisplayTrigger>
   }
   showFullscreen
-/>
+/>;
 ```
 
 Use `displayControlsClassName` to adjust how a host's controls reveal while
@@ -167,6 +165,7 @@ does not claim to accept user input after playback has stopped.
 
 ```tsx
 import { useRef } from "react";
+
 import { BrowserRecording } from "@browser-ui/react";
 
 const recording = useRef<HTMLVideoElement>(null);
@@ -179,7 +178,7 @@ const recording = useRef<HTMLVideoElement>(null);
   showPictureInPicture
   showFullscreen
   videoProps={{ controls: true }}
-/>
+/>;
 ```
 
 The forwarded `HTMLVideoElement` ref provides normal `play`, `pause`, `seek`,

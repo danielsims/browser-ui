@@ -1,0 +1,4 @@
+{
+  "extends": "@browser-ui/tsconfig/base.json",
+  "include": ["*.ts"]
+}

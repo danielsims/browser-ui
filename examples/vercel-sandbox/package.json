@@ -2,14 +2,17 @@
   "name": "@browser-ui/example-vercel-sandbox",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "next build",
     "dev": "next dev",
+    "format": "prettier --check . --ignore-path ../../.gitignore --ignore-path ../../.prettierignore",
+    "lint": "eslint --flag unstable_native_nodejs_ts_config",
     "start": "next start",
-    "typecheck": "pnpm --filter @browser-ui/react build && tsc --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@browser-ui/react": "^0.2.0",
+    "@browser-ui/react": "workspace:*",
     "@vercel/sandbox": "2.9.0",
     "geist": "1.7.2",
     "next": "^16.2.11",
@@ -17,9 +20,15 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@browser-ui/eslint-config": "workspace:*",
+    "@browser-ui/prettier-config": "workspace:*",
+    "@browser-ui/tsconfig": "workspace:*",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
-    "typescript": "^5.9.3"
-  }
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:"
+  },
+  "prettier": "@browser-ui/prettier-config"
 }

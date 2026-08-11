@@ -1,9 +1,3 @@
-import {
-  AgentBrowserView,
-  BrowserSheet,
-  type AgentBrowserConnectionStatus,
-  type BrowserSessionAccess,
-} from "@browser-ui/react-native";
 import { useState } from "react";
 import {
   Pressable,
@@ -14,6 +8,12 @@ import {
   Text,
   View,
 } from "react-native";
+
+import type {
+  AgentBrowserConnectionStatus,
+  BrowserSessionAccess,
+} from "@browser-ui/react-native";
+import { AgentBrowserView, BrowserSheet } from "@browser-ui/react-native";
 
 interface StreamConfiguration {
   displayHost: string;
@@ -84,7 +84,11 @@ function statusLabel(status: AgentBrowserConnectionStatus): string {
 const configuration = streamConfiguration(
   process.env.EXPO_PUBLIC_BROWSER_STREAM_URL,
 );
-const demoViewer = { id: "demo-user", displayName: "You", kind: "user" } as const;
+const demoViewer = {
+  id: "demo-user",
+  displayName: "You",
+  kind: "user",
+} as const;
 
 export default function App() {
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -115,7 +119,9 @@ export default function App() {
             <View style={styles.eyebrowRule} />
             <Text style={styles.eyebrow}>BROWSER UI / NATIVE</Text>
           </View>
-          <Text style={styles.heading}>A browser surface, not a second browser.</Text>
+          <Text style={styles.heading}>
+            A browser surface, not a second browser.
+          </Text>
           <Text style={styles.intro}>
             Live JPEG frames from a reachable agent-browser gateway, with
             control kept deliberately separate.
@@ -125,7 +131,9 @@ export default function App() {
         {configuration.issue ? (
           <View style={styles.unavailableCard}>
             <Text style={styles.unavailableKicker}>STREAM UNAVAILABLE</Text>
-            <Text style={styles.unavailableTitle}>{configuration.displayHost}</Text>
+            <Text style={styles.unavailableTitle}>
+              {configuration.displayHost}
+            </Text>
             <Text style={styles.unavailableText}>{configuration.issue}</Text>
             <View style={styles.codePill}>
               <Text selectable style={styles.codeText}>

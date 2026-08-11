@@ -1,9 +1,13 @@
 "use client";
 
+import type { HTMLMotionProps } from "motion/react";
 import type { HTMLAttributes, ReactNode } from "react";
-import { motion, type HTMLMotionProps } from "motion/react";
+import { motion } from "motion/react";
 
-export interface BrowserSurfaceProps extends Omit<HTMLMotionProps<"div">, "children"> {
+export interface BrowserSurfaceProps extends Omit<
+  HTMLMotionProps<"div">,
+  "children"
+> {
   children?: ReactNode;
   loading?: boolean;
   loadingFallback?: ReactNode;
@@ -11,17 +15,42 @@ export interface BrowserSurfaceProps extends Omit<HTMLMotionProps<"div">, "child
 }
 
 /** Transport-neutral viewport surface. */
-export function BrowserSurface({ children, className, loading = false, loadingFallback, overlay, ...props }: BrowserSurfaceProps) {
-  return <motion.div {...props} className={["bui-surface", className].filter(Boolean).join(" ")}>
-    {children}
-    {loading ? loadingFallback : overlay}
-  </motion.div>;
+export function BrowserSurface({
+  children,
+  className,
+  loading = false,
+  loadingFallback,
+  overlay,
+  ...props
+}: BrowserSurfaceProps) {
+  return (
+    <motion.div
+      {...props}
+      className={["bui-surface", className].filter(Boolean).join(" ")}
+    >
+      {children}
+      {loading ? loadingFallback : overlay}
+    </motion.div>
+  );
 }
 
 export interface BrowserLoadingProps extends HTMLAttributes<HTMLDivElement> {
   label?: string;
 }
 
-export function BrowserLoading({ className, label = "Opening browser", ...props }: BrowserLoadingProps) {
-  return <div {...props} className={["bui-loading", className].filter(Boolean).join(" ")} role="status"><span /><small>{label}</small></div>;
+export function BrowserLoading({
+  className,
+  label = "Opening browser",
+  ...props
+}: BrowserLoadingProps) {
+  return (
+    <div
+      {...props}
+      className={["bui-loading", className].filter(Boolean).join(" ")}
+      role="status"
+    >
+      <span />
+      <small>{label}</small>
+    </div>
+  );
 }

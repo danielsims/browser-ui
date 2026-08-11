@@ -7,10 +7,15 @@ import {
   encodeBrowserSessionBinaryFrame,
 } from "../dist/index.js";
 
-const fixtures = JSON.parse(readFileSync(
-  new URL("../../flutter/test/fixtures/protocol/messages.json", import.meta.url),
-  "utf8",
-));
+const fixtures = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../flutter/test/fixtures/protocol/messages.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 const jpeg = Uint8Array.from(fixtures.binaryFrame.jpeg);
 const header = fixtures.binaryFrame.header;
 
@@ -25,8 +30,11 @@ test("rejects malformed and oversized binary frames", () => {
   const encoded = encodeBrowserSessionBinaryFrame(header, jpeg);
   encoded[0] = 0;
   assert.equal(decodeBrowserSessionBinaryFrame(encoded), null);
-  assert.equal(decodeBrowserSessionBinaryFrame(
-    encodeBrowserSessionBinaryFrame(header, jpeg),
-    2,
-  ), null);
+  assert.equal(
+    decodeBrowserSessionBinaryFrame(
+      encodeBrowserSessionBinaryFrame(header, jpeg),
+      2,
+    ),
+    null,
+  );
 });

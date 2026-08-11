@@ -1,12 +1,15 @@
 import type { BrowserViewportSize } from "../geometry.js";
-import type { BrowserAgentActivity, BrowserAgentCursorState } from "../presentation.js";
-import {
-  BROWSER_SESSION_VERSION,
-  type BrowserSessionDescriptor,
-  type BrowserSessionResolvedAccess,
-  type BrowserSessionResumeCursor,
-  type BrowserSessionStatus,
+import type {
+  BrowserAgentActivity,
+  BrowserAgentCursorState,
+} from "../presentation.js";
+import type {
+  BrowserSessionDescriptor,
+  BrowserSessionResolvedAccess,
+  BrowserSessionResumeCursor,
+  BrowserSessionStatus,
 } from "./types.js";
+import { BROWSER_SESSION_VERSION } from "./types.js";
 
 export interface BrowserSessionClientHelloMessage {
   v: typeof BROWSER_SESSION_VERSION;
@@ -177,8 +180,9 @@ export function parseBrowserSourceMessage(
   limits: BrowserSourceMessageLimits = {},
 ): BrowserSourceMessage | null {
   const decoded = decodeRecord(value);
-  if (!decoded || decoded.v !== BROWSER_SESSION_VERSION) return null;
-  const maximumEncodedFrameLength = limits.maximumEncodedFrameLength ?? 24 * 1024 * 1024;
+  if (decoded?.v !== BROWSER_SESSION_VERSION) return null;
+  const maximumEncodedFrameLength =
+    limits.maximumEncodedFrameLength ?? 24 * 1024 * 1024;
   const maximumViewportDimension = limits.maximumViewportDimension ?? 8192;
 
   switch (decoded.type) {
@@ -192,32 +196,35 @@ export function parseBrowserSourceMessage(
         !boundedPositive(decoded.height, maximumViewportDimension) ||
         (decoded.capturedAt !== undefined && !finite(decoded.capturedAt)) ||
         (decoded.metadata !== undefined && !isRecord(decoded.metadata))
-      ) return null;
+      )
+        return null;
       return decoded as unknown as BrowserSourceFrameMessage;
     }
     case "source.state":
       return isSourceStatus(decoded.status) &&
         isViewport(decoded.viewport, maximumViewportDimension)
-        ? decoded as unknown as BrowserSourceStateMessage
+        ? (decoded as unknown as BrowserSourceStateMessage)
         : null;
     case "source.page":
       return typeof decoded.url === "string" && isHttpUrl(decoded.url)
-        ? decoded as unknown as BrowserSourcePageMessage
+        ? (decoded as unknown as BrowserSourcePageMessage)
         : null;
     case "source.activity":
       return validActivity(decoded)
-        ? decoded as unknown as BrowserSourceActivityMessage
+        ? (decoded as unknown as BrowserSourceActivityMessage)
         : null;
     case "heartbeat":
       return finite(decoded.sentAt)
-        ? decoded as unknown as BrowserSessionHeartbeatMessage
+        ? (decoded as unknown as BrowserSessionHeartbeatMessage)
         : null;
     default:
       return null;
   }
 }
 
-export function parseBrowserViewerMessage(value: unknown): BrowserViewerMessage | null {
+export function parseBrowserViewerMessage(
+  value: unknown,
+): BrowserViewerMessage | null {
   const decoded = decodeRecord(value);
   if (!decoded) return null;
   if (
@@ -232,26 +239,31 @@ export function parseBrowserViewerMessage(value: unknown): BrowserViewerMessage 
     return decoded as unknown as BrowserSessionHeartbeatMessage;
   }
   if (decoded.type !== "client.hello") return null;
-  if (decoded.resume !== undefined && !isResumeCursor(decoded.resume)) return null;
+  if (decoded.resume !== undefined && !isResumeCursor(decoded.resume))
+    return null;
   return decoded as unknown as BrowserSessionClientHelloMessage;
 }
 
-export function parseBrowserSourceInputMessage(value: unknown): BrowserSourceInputMessage | null {
+export function parseBrowserSourceInputMessage(
+  value: unknown,
+): BrowserSourceInputMessage | null {
   const decoded = decodeRecord(value);
   if (
-    !decoded ||
-    decoded.v !== BROWSER_SESSION_VERSION ||
+    decoded?.v !== BROWSER_SESSION_VERSION ||
     decoded.type !== "source.input" ||
     typeof decoded.leaseId !== "string" ||
     !/^[A-Za-z0-9_-]{16,160}$/.test(decoded.leaseId) ||
     typeof decoded.expiresAt !== "string" ||
     !Number.isFinite(Date.parse(decoded.expiresAt))
-  ) return null;
+  )
+    return null;
   const input = parseBrowserSessionInput(decoded.input);
-  return input ? { ...decoded, input } as BrowserSourceInputMessage : null;
+  return input ? ({ ...decoded, input } as BrowserSourceInputMessage) : null;
 }
 
-export function parseBrowserSessionInput(value: unknown): BrowserSessionInputMessage | null {
+export function parseBrowserSessionInput(
+  value: unknown,
+): BrowserSessionInputMessage | null {
   if (!isRecord(value)) return null;
   if (value.type === "input_mouse") {
     if (
@@ -260,10 +272,12 @@ export function parseBrowserSessionInput(value: unknown): BrowserSessionInputMes
       !coordinate(value.y) ||
       !modifierMask(value.modifiers) ||
       (value.button !== undefined && !mouseButton(value.button)) ||
-      (value.clickCount !== undefined && !boundedInteger(value.clickCount, 0, 3)) ||
+      (value.clickCount !== undefined &&
+        !boundedInteger(value.clickCount, 0, 3)) ||
       (value.deltaX !== undefined && !boundedFinite(value.deltaX, 100_000)) ||
       (value.deltaY !== undefined && !boundedFinite(value.deltaY, 100_000))
-    ) return null;
+    )
+      return null;
     return value as unknown as BrowserMouseInputMessage;
   }
   if (value.type === "input_keyboard") {
@@ -274,12 +288,13 @@ export function parseBrowserSessionInput(value: unknown): BrowserSessionInputMes
       (value.text !== undefined && !boundedString(value.text, 4096)) ||
       !boundedInteger(value.windowsVirtualKeyCode, 0, 65_535) ||
       !modifierMask(value.modifiers)
-    ) return null;
+    )
+      return null;
     return value as unknown as BrowserKeyboardInputMessage;
   }
   if (value.type === "input_navigation") {
     return value.direction === "back" || value.direction === "forward"
-      ? value as unknown as BrowserNavigationInputMessage
+      ? (value as unknown as BrowserNavigationInputMessage)
       : null;
   }
   return null;
@@ -299,41 +314,61 @@ function decodeRecord(value: unknown): Record<string, unknown> | null {
 
 function isResumeCursor(value: unknown): boolean {
   if (!isRecord(value)) return false;
-  return (value.sourceEpoch === undefined || typeof value.sourceEpoch === "string") &&
+  return (
+    (value.sourceEpoch === undefined ||
+      typeof value.sourceEpoch === "string") &&
     optionalNonNegativeInteger(value.lastEventSequence) &&
-    optionalNonNegativeInteger(value.lastFrameSequence);
+    optionalNonNegativeInteger(value.lastFrameSequence)
+  );
 }
 
-function isViewport(value: unknown, maximum: number): value is BrowserViewportSize {
-  return isRecord(value) &&
+function isViewport(
+  value: unknown,
+  maximum: number,
+): value is BrowserViewportSize {
+  return (
+    isRecord(value) &&
     boundedPositive(value.width, maximum) &&
-    boundedPositive(value.height, maximum);
+    boundedPositive(value.height, maximum)
+  );
 }
 
-function isSourceStatus(value: unknown): value is BrowserSourceStateMessage["status"] {
+function isSourceStatus(
+  value: unknown,
+): value is BrowserSourceStateMessage["status"] {
   return value === "waiting" || value === "live" || value === "offline";
 }
 
 function validActivity(value: Record<string, unknown>): boolean {
-  return nonEmptyBoundedString(value.id, 256) &&
+  return (
+    nonEmptyBoundedString(value.id, 256) &&
     nonEmptyBoundedString(value.action, 128) &&
     nonEmptyBoundedString(value.label, 160) &&
     (value.phase === "started" || value.phase === "completed") &&
     finite(value.timestamp) &&
     (value.agentCursor === undefined || validAgentCursor(value.agentCursor)) &&
     (value.success === undefined || typeof value.success === "boolean") &&
-    (value.durationMs === undefined || optionalNonNegativeInteger(value.durationMs));
+    (value.durationMs === undefined ||
+      optionalNonNegativeInteger(value.durationMs))
+  );
 }
 
 function validAgentCursor(value: unknown): value is BrowserAgentCursorState {
-  if (!isRecord(value) || !unitCoordinate(value.x) || !unitCoordinate(value.y)) return false;
-  return (value.label === undefined || nonEmptyBoundedString(value.label, 80)) &&
+  if (!isRecord(value) || !unitCoordinate(value.x) || !unitCoordinate(value.y))
+    return false;
+  return (
+    (value.label === undefined || nonEmptyBoundedString(value.label, 80)) &&
     (value.pressed === undefined || typeof value.pressed === "boolean") &&
     (value.typing === undefined || typeof value.typing === "boolean") &&
     (value.visible === undefined || typeof value.visible === "boolean") &&
-    (value.variant === undefined || value.variant === "light" || value.variant === "dark") &&
-    (value.size === undefined || boundedFinite(value.size, 256) && value.size > 0) &&
-    (value.backgroundColor === undefined || nonEmptyBoundedString(value.backgroundColor, 128));
+    (value.variant === undefined ||
+      value.variant === "light" ||
+      value.variant === "dark") &&
+    (value.size === undefined ||
+      (boundedFinite(value.size, 256) && value.size > 0)) &&
+    (value.backgroundColor === undefined ||
+      nonEmptyBoundedString(value.backgroundColor, 128))
+  );
 }
 
 function isHttpUrl(value: string): boolean {
@@ -365,8 +400,17 @@ function modifierMask(value: unknown): value is number {
   return boundedInteger(value, 0, 15);
 }
 
-function boundedInteger(value: unknown, minimum: number, maximum: number): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= minimum && value <= maximum;
+function boundedInteger(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= minimum &&
+    value <= maximum
+  );
 }
 
 function boundedFinite(value: unknown, magnitude: number): value is number {
@@ -377,20 +421,38 @@ function boundedString(value: unknown, maximum: number): value is string {
   return typeof value === "string" && value.length <= maximum;
 }
 
-function nonEmptyBoundedString(value: unknown, maximum: number): value is string {
+function nonEmptyBoundedString(
+  value: unknown,
+  maximum: number,
+): value is string {
   return boundedString(value, maximum) && value.length > 0;
 }
 
-function mouseEventType(value: unknown): value is BrowserMouseInputMessage["eventType"] {
-  return value === "mouseMoved" || value === "mousePressed" ||
-    value === "mouseReleased" || value === "mouseWheel";
+function mouseEventType(
+  value: unknown,
+): value is BrowserMouseInputMessage["eventType"] {
+  return (
+    value === "mouseMoved" ||
+    value === "mousePressed" ||
+    value === "mouseReleased" ||
+    value === "mouseWheel"
+  );
 }
 
-function mouseButton(value: unknown): value is NonNullable<BrowserMouseInputMessage["button"]> {
-  return value === "left" || value === "middle" || value === "right" || value === "none";
+function mouseButton(
+  value: unknown,
+): value is NonNullable<BrowserMouseInputMessage["button"]> {
+  return (
+    value === "left" ||
+    value === "middle" ||
+    value === "right" ||
+    value === "none"
+  );
 }
 
-function keyboardEventType(value: unknown): value is BrowserKeyboardInputMessage["eventType"] {
+function keyboardEventType(
+  value: unknown,
+): value is BrowserKeyboardInputMessage["eventType"] {
   return value === "keyDown" || value === "keyUp" || value === "char";
 }
 
@@ -399,6 +461,8 @@ function boundedPositive(value: unknown, maximum: number): value is number {
 }
 
 function optionalNonNegativeInteger(value: unknown): boolean {
-  return value === undefined ||
-    (typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
+  return (
+    value === undefined ||
+    (typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
+  );
 }

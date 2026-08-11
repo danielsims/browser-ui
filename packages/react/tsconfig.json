@@ -1,4 +1,5 @@
 {
+  "extends": "@browser-ui/tsconfig/base.json",
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
@@ -13,5 +14,5 @@
       "@browser-ui/shaders": ["../shaders/src/index.ts"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }

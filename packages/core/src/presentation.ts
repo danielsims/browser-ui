@@ -31,7 +31,4 @@ export interface BrowserRecordingTimelineEvent {
 }
 
 export type BrowserViewportStatus =
-  | "connecting"
-  | "connected"
-  | "disconnected"
-  | "error";
+  "connecting" | "connected" | "disconnected" | "error";

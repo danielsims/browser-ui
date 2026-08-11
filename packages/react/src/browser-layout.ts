@@ -1,12 +1,14 @@
 "use client";
 
+import type { RefObject } from "react";
 import {
   useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
-  type RefObject,
+  useState,
 } from "react";
+
 import type { BrowserDisplayMode } from "./browser-display";
 
 interface BrowserLayoutSnapshot {
@@ -55,8 +57,31 @@ function invertLayout(from: DOMRect, to: DOMRect) {
   ].join(" ");
 }
 
-export function useBrowserLayout({ frameMounted, frameRef, fullscreenTarget, inlineHostRef, mode, portalHost, rootRef }: UseBrowserLayoutOptions) {
-  const inlineHeightRef = useRef<number | undefined>(undefined);
+function startLayoutTransition(
+  target: HTMLElement,
+  from: DOMRect,
+  to: DOMRect,
+) {
+  target.style.transition = "none";
+  target.style.transformOrigin = "top left";
+  target.style.transform = invertLayout(from, to);
+  target.style.willChange = "transform";
+  void target.offsetWidth;
+  target.dataset.modeTransitioning = "true";
+  target.style.transition = `transform ${modeTransitionDurationMs}ms cubic-bezier(.22, 1, .36, 1)`;
+  target.style.transform = "translate3d(0, 0, 0) scale(1, 1)";
+}
+
+export function useBrowserLayout({
+  frameMounted,
+  frameRef,
+  fullscreenTarget,
+  inlineHostRef,
+  mode,
+  portalHost,
+  rootRef,
+}: UseBrowserLayoutOptions) {
+  const [inlineHeight, setInlineHeight] = useState<number | undefined>();
   const lastLayoutRef = useRef<BrowserLayoutSnapshot | null>(null);
   const modeTransitionCleanupRef = useRef<(() => void) | null>(null);
   const transitionFromRef = useRef<BrowserLayoutSnapshot | null>(null);
@@ -82,10 +107,26 @@ export function useBrowserLayout({ frameMounted, frameRef, fullscreenTarget, inl
     const top = Math.floor(bounds.top);
     frame.style.setProperty("--bui-fullscreen-top", `${top}px`);
     frame.style.setProperty("--bui-fullscreen-left", `${left}px`);
-    frame.style.setProperty("--bui-fullscreen-width", `${Math.ceil(bounds.right) - left}px`);
-    frame.style.setProperty("--bui-fullscreen-height", `${Math.ceil(bounds.bottom) - top}px`);
-    frame.style.setProperty("--bui-fullscreen-radius", targetStyle.borderRadius);
-  }, [frameMounted, frameRef, fullscreenTarget, inlineHostRef, mode, portalHost]);
+    frame.style.setProperty(
+      "--bui-fullscreen-width",
+      `${Math.ceil(bounds.right) - left}px`,
+    );
+    frame.style.setProperty(
+      "--bui-fullscreen-height",
+      `${Math.ceil(bounds.bottom) - top}px`,
+    );
+    frame.style.setProperty(
+      "--bui-fullscreen-radius",
+      targetStyle.borderRadius,
+    );
+  }, [
+    frameMounted,
+    frameRef,
+    fullscreenTarget,
+    inlineHostRef,
+    mode,
+    portalHost,
+  ]);
 
   useLayoutEffect(() => {
     const previousMode = previousModeRef.current;
@@ -102,16 +143,22 @@ export function useBrowserLayout({ frameMounted, frameRef, fullscreenTarget, inl
       if (from && hasLayout(from.frame) && hasLayout(anchor)) {
         const offsetX = anchor.left - from.frame.left;
         const offsetY = anchor.top - from.frame.top;
-        const surface = from.surface ? new DOMRect(
-          from.surface.left + offsetX,
-          from.surface.top + offsetY,
-          from.surface.width,
-          from.surface.height,
-        ) : undefined;
+        const surface = from.surface
+          ? new DOMRect(
+              from.surface.left + offsetX,
+              from.surface.top + offsetY,
+              from.surface.width,
+              from.surface.height,
+            )
+          : undefined;
         from = { frame: anchor, surface };
       } else if (hasLayout(anchor)) from = { frame: anchor };
     }
-    if (!frame || !from || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (
+      !frame ||
+      !from ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
       if (frame) lastLayoutRef.current = captureBrowserLayout(frame);
       return;
     }
@@ -130,14 +177,7 @@ export function useBrowserLayout({ frameMounted, frameRef, fullscreenTarget, inl
 
     transitioningRef.current = true;
     frame.dataset.transitioning = "true";
-    target.style.transition = "none";
-    target.style.transformOrigin = "top left";
-    target.style.transform = invertLayout(fromRect, toRect);
-    target.style.willChange = "transform";
-    void target.offsetWidth;
-    target.dataset.modeTransitioning = "true";
-    target.style.transition = `transform ${modeTransitionDurationMs}ms cubic-bezier(.22, 1, .36, 1)`;
-    target.style.transform = "translate3d(0, 0, 0) scale(1, 1)";
+    startLayoutTransition(target, fromRect, toRect);
 
     let fallback: ReturnType<typeof setTimeout> | null = null;
     const finish = () => {
@@ -156,7 +196,8 @@ export function useBrowserLayout({ frameMounted, frameRef, fullscreenTarget, inl
       modeTransitionCleanupRef.current = null;
     };
     const handleTransitionEnd = (event: TransitionEvent) => {
-      if (event.target === target && event.propertyName === "transform") finish();
+      if (event.target === target && event.propertyName === "transform")
+        finish();
     };
 
     target.addEventListener("transitionend", handleTransitionEnd);
@@ -168,11 +209,14 @@ export function useBrowserLayout({ frameMounted, frameRef, fullscreenTarget, inl
     const frame = frameRef.current;
     if (!frame) return;
     const updateLayout = () => {
-      if (!transitioningRef.current) lastLayoutRef.current = captureBrowserLayout(frame);
-      if (mode === "inline") inlineHeightRef.current = frame.getBoundingClientRect().height;
+      if (!transitioningRef.current)
+        lastLayoutRef.current = captureBrowserLayout(frame);
+      if (mode === "inline")
+        setInlineHeight(frame.getBoundingClientRect().height);
     };
 
-    updateLayout();
+    if (!transitioningRef.current)
+      lastLayoutRef.current = captureBrowserLayout(frame);
     const observer = new ResizeObserver(updateLayout);
     observer.observe(frame);
     const surface = frame.querySelector<HTMLElement>(".bui-browser-surface");
@@ -193,9 +237,18 @@ export function useBrowserLayout({ frameMounted, frameRef, fullscreenTarget, inl
       const top = Math.floor(bounds.top);
       frame.style.setProperty("--bui-fullscreen-top", `${top}px`);
       frame.style.setProperty("--bui-fullscreen-left", `${left}px`);
-      frame.style.setProperty("--bui-fullscreen-width", `${Math.ceil(bounds.right) - left}px`);
-      frame.style.setProperty("--bui-fullscreen-height", `${Math.ceil(bounds.bottom) - top}px`);
-      frame.style.setProperty("--bui-fullscreen-radius", targetStyle.borderRadius);
+      frame.style.setProperty(
+        "--bui-fullscreen-width",
+        `${Math.ceil(bounds.right) - left}px`,
+      );
+      frame.style.setProperty(
+        "--bui-fullscreen-height",
+        `${Math.ceil(bounds.bottom) - top}px`,
+      );
+      frame.style.setProperty(
+        "--bui-fullscreen-radius",
+        targetStyle.borderRadius,
+      );
     };
 
     updateBounds();
@@ -216,7 +269,7 @@ export function useBrowserLayout({ frameMounted, frameRef, fullscreenTarget, inl
 
   return {
     prepareModeTransition,
-    retainedHeight: mode === "inline" ? undefined : inlineHeightRef.current,
+    retainedHeight: mode === "inline" ? undefined : inlineHeight,
   };
 }
 
@@ -225,12 +278,18 @@ interface UseBrowserDisplayLifecycleOptions {
   onExit: () => void;
 }
 
-export function useBrowserDisplayLifecycle({ mode, onExit }: UseBrowserDisplayLifecycleOptions) {
+export function useBrowserDisplayLifecycle({
+  mode,
+  onExit,
+}: UseBrowserDisplayLifecycleOptions) {
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (mode !== "inline") {
-      if (!previousFocusRef.current && document.activeElement instanceof HTMLElement) {
+      if (
+        !previousFocusRef.current &&
+        document.activeElement instanceof HTMLElement
+      ) {
         previousFocusRef.current = document.activeElement;
       }
       return;

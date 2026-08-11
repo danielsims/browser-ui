@@ -1,5 +1,9 @@
 import type { IncomingMessage } from "node:http";
-import type { BrowserSessionCapability, BrowserSessionDescriptor } from "@browser-ui/core";
+
+import type {
+  BrowserSessionCapability,
+  BrowserSessionDescriptor,
+} from "@browser-ui/core";
 
 export interface BrowserGatewayPrincipal {
   id: string;

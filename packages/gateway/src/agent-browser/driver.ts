@@ -1,7 +1,5 @@
-import {
-  createBrowserDriverDescriptor,
-  type BrowserDriverCapability,
-} from "@browser-ui/core";
+import type { BrowserDriverCapability } from "@browser-ui/core";
+import { createBrowserDriverDescriptor } from "@browser-ui/core";
 
 /**
  * Automation capabilities exposed by upstream agent-browser. The relay uses

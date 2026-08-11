@@ -4,9 +4,12 @@ const sourceToken = required("BROWSER_UI_SOURCE_TOKEN");
 const viewerToken = required("BROWSER_UI_VIEWER_TOKEN");
 const port = integer("PORT", 8787);
 const host = process.env.HOST ?? "127.0.0.1";
-const publicOrigin = process.env.BROWSER_UI_PUBLIC_ORIGIN ?? `http://127.0.0.1:${port}`;
-const allowedRequestOrigins = (process.env.BROWSER_UI_ALLOWED_ORIGINS ??
-  "http://localhost:55490,http://127.0.0.1:55490")
+const publicOrigin =
+  process.env.BROWSER_UI_PUBLIC_ORIGIN ?? `http://127.0.0.1:${port}`;
+const allowedRequestOrigins = (
+  process.env.BROWSER_UI_ALLOWED_ORIGINS ??
+  "http://localhost:55490,http://127.0.0.1:55490"
+)
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -16,10 +19,16 @@ const gateway = createBrowserSessionGateway({
   allowedRequestOrigins,
   authenticate(request, action) {
     const authorization = request.headers.authorization;
-    if (action.startsWith("source:") && authorization === `Bearer ${sourceToken}`) {
+    if (
+      action.startsWith("source:") &&
+      authorization === `Bearer ${sourceToken}`
+    ) {
       return { id: "demo-source", kind: "service" };
     }
-    if (action.startsWith("viewer:") && authorization === `Bearer ${viewerToken}`) {
+    if (
+      action.startsWith("viewer:") &&
+      authorization === `Bearer ${viewerToken}`
+    ) {
       return { id: "demo-viewer", kind: "user" };
     }
     return null;
@@ -28,20 +37,24 @@ const gateway = createBrowserSessionGateway({
 });
 
 gateway.server.listen(port, host, () => {
-  process.stdout.write(`Browser session gateway listening at ${publicOrigin}\n`);
+  process.stdout.write(
+    `Browser session gateway listening at ${publicOrigin}\n`,
+  );
 });
 
 const metricsTimer = setInterval(() => {
   const metrics = gateway.getMetrics();
   if (metrics.sourceFramesReceived > 0) {
-    process.stdout.write(`${JSON.stringify({ type: "browser-session.metrics", ...metrics })}\n`);
+    process.stdout.write(
+      `${JSON.stringify({ type: "browser-session.metrics", ...metrics })}\n`,
+    );
   }
 }, 5_000);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.once(signal, async () => {
+  process.once(signal, () => {
     clearInterval(metricsTimer);
-    await gateway.close();
+    void gateway.close();
   });
 }
 

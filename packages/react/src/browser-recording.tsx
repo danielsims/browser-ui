@@ -1,18 +1,42 @@
 "use client";
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type ReactNode, type SyntheticEvent, type VideoHTMLAttributes } from "react";
-import { BrowserAgentCursor, type BrowserAgentCursorState } from "./agent-cursor";
-import { BrowserDisplayControls, BrowserFullscreenTrigger, BrowserPictureInPictureTrigger } from "./browser-display";
-import { BrowserRoot, type BrowserRootProps } from "./browser-root";
-import { BrowserOperatingOverlay } from "./operating-overlay";
-import type { BrowserOperatingShaderOptions } from "./operating-shader";
-import { BrowserSurface } from "./browser-surface";
-import type { BrowserViewportSize } from "./agent-browser-viewport";
+import type {
+  CSSProperties,
+  ReactNode,
+  SyntheticEvent,
+  VideoHTMLAttributes,
+} from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
+
 import type { BrowserRecordingTimelineEvent } from "@browser-ui/core";
+
+import type { BrowserViewportSize } from "./agent-browser-viewport";
+import type { BrowserAgentCursorState } from "./agent-cursor";
+import type { BrowserRootProps } from "./browser-root";
+import type { BrowserOperatingShaderOptions } from "./operating-shader";
+import { BrowserAgentCursor } from "./agent-cursor";
+import {
+  BrowserDisplayControls,
+  BrowserFullscreenTrigger,
+  BrowserPictureInPictureTrigger,
+} from "./browser-display";
+import { BrowserRoot } from "./browser-root";
+import { BrowserSurface } from "./browser-surface";
+import { BrowserOperatingOverlay } from "./operating-overlay";
 
 export type { BrowserRecordingTimelineEvent } from "@browser-ui/core";
 
-export interface BrowserRecordingProps extends Omit<BrowserRootProps, "children"> {
+export interface BrowserRecordingProps extends Omit<
+  BrowserRootProps,
+  "children"
+> {
   /** WebM or another browser-supported recording produced by agent-browser. */
   src: string;
   /** Original recording resolution, used only to preserve the intended aspect ratio. */
@@ -45,7 +69,18 @@ export interface BrowserRecordingProps extends Omit<BrowserRootProps, "children"
   displayControls?: ReactNode;
   displayControlsClassName?: string;
   videoClassName?: string;
-  videoProps?: Omit<VideoHTMLAttributes<HTMLVideoElement>, "aria-label" | "autoPlay" | "className" | "loop" | "muted" | "onEnded" | "playsInline" | "preload" | "src">;
+  videoProps?: Omit<
+    VideoHTMLAttributes<HTMLVideoElement>,
+    | "aria-label"
+    | "autoPlay"
+    | "className"
+    | "loop"
+    | "muted"
+    | "onEnded"
+    | "playsInline"
+    | "preload"
+    | "src"
+  >;
   onEnded?: VideoHTMLAttributes<HTMLVideoElement>["onEnded"];
 }
 
@@ -53,47 +88,59 @@ export interface BrowserRecordingProps extends Omit<BrowserRootProps, "children"
  * A static, non-interactive recording surface for the native WebM output from
  * `agent-browser record start`. Use Browser for a live, pair-browsable stream.
  */
-export const BrowserRecording = forwardRef<HTMLVideoElement, BrowserRecordingProps>(function BrowserRecording({
-  agentCursor,
-  ariaLabel = "Recorded browser workflow",
-  autoPlay = true,
-  className,
-  colorScheme,
-  defaultMode,
-  displayControls,
-  displayControlsClassName,
-  displayAspectRatio,
-  loop = false,
-  mode,
-  muted = true,
-  onEnded,
-  onModeChange,
-  onTakeControl,
-  operating = false,
-  operatingLabel = "Agent is operating this browser",
-  operatingShader,
-  playbackRate = 1,
-  preload = "metadata",
-  showFullscreen = false,
-  showPictureInPicture = false,
-  src,
-  startTime = 0,
-  style,
-  timeline,
-  variant = "framed",
-  videoClassName,
-  videoProps,
-  viewportSize,
-  ...rootProps
-}: BrowserRecordingProps, forwardedRef) {
+export const BrowserRecording = forwardRef<
+  HTMLVideoElement,
+  BrowserRecordingProps
+>(function BrowserRecording(
+  {
+    agentCursor,
+    ariaLabel = "Recorded browser workflow",
+    autoPlay = true,
+    className,
+    colorScheme,
+    defaultMode,
+    displayControls,
+    displayControlsClassName,
+    displayAspectRatio,
+    loop = false,
+    mode,
+    muted = true,
+    onEnded,
+    onModeChange,
+    onTakeControl,
+    operating = false,
+    operatingLabel = "Agent is operating this browser",
+    operatingShader,
+    playbackRate = 1,
+    preload = "metadata",
+    showFullscreen = false,
+    showPictureInPicture = false,
+    src,
+    startTime = 0,
+    style,
+    timeline,
+    variant = "framed",
+    videoClassName,
+    videoProps,
+    viewportSize,
+    ...rootProps
+  }: BrowserRecordingProps,
+  forwardedRef,
+) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(
+    null,
+  );
   const [playbackReady, setPlaybackReady] = useState(startTime <= 0);
   const timelineIndexRef = useRef(-1);
   const timelineRef = useRef(timeline);
   const initialTimeline = recordingTimelineState(timeline, startTime * 1000);
   const [timelineState, setTimelineState] = useState(initialTimeline.state);
-  useImperativeHandle(forwardedRef, () => videoRef.current!, []);
+  useImperativeHandle(forwardedRef, () => {
+    const video = videoRef.current;
+    if (!video) throw new Error("The recording video is not mounted");
+    return video;
+  }, []);
   const setVideoNode = useCallback((node: HTMLVideoElement | null) => {
     videoRef.current = node;
     setVideoElement(node);
@@ -122,7 +169,8 @@ export const BrowserRecording = forwardRef<HTMLVideoElement, BrowserRecordingPro
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") resumePlayback();
     };
-    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) resumePlayback();
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA)
+      resumePlayback();
     video.addEventListener("canplay", resumePlayback);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", resumePlayback);
@@ -145,7 +193,10 @@ export const BrowserRecording = forwardRef<HTMLVideoElement, BrowserRecordingPro
     setTimelineState(next.state);
   }, []);
   const syncTimeline = useCallback(() => {
-    if (videoElement && videoElement.readyState >= HTMLMediaElement.HAVE_METADATA) {
+    if (
+      videoElement &&
+      videoElement.readyState >= HTMLMediaElement.HAVE_METADATA
+    ) {
       syncTimelineAt(videoElement.currentTime * 1000);
     }
   }, [syncTimelineAt, videoElement]);
@@ -156,9 +207,13 @@ export const BrowserRecording = forwardRef<HTMLVideoElement, BrowserRecordingPro
     let animationFrame = 0;
     const tick = () => {
       syncTimeline();
-      if (!video.paused && !video.ended) animationFrame = requestAnimationFrame(tick);
+      if (!video.paused && !video.ended)
+        animationFrame = requestAnimationFrame(tick);
     };
-    const start = () => { cancelAnimationFrame(animationFrame); tick(); };
+    const start = () => {
+      cancelAnimationFrame(animationFrame);
+      tick();
+    };
     const stop = () => cancelAnimationFrame(animationFrame);
     video.addEventListener("play", start);
     video.addEventListener("pause", stop);
@@ -173,79 +228,122 @@ export const BrowserRecording = forwardRef<HTMLVideoElement, BrowserRecordingPro
     };
   }, [syncTimeline, timeline, videoElement]);
 
-  const handleEnded = useCallback((event: SyntheticEvent<HTMLVideoElement>) => {
-    timelineIndexRef.current = -1;
-    setTimelineState({});
-    onEnded?.(event);
-  }, [onEnded]);
-  const handleLoadedMetadata = useCallback((event: SyntheticEvent<HTMLVideoElement>) => {
-    const video = event.currentTarget;
-    const target = Math.min(Math.max(0, startTime), Number.isFinite(video.duration) ? video.duration : startTime);
-    if (target > 0 && Math.abs(video.currentTime - target) > .05) {
-      video.currentTime = target;
-    } else setPlaybackReady(true);
-    videoProps?.onLoadedMetadata?.(event);
-  }, [startTime, videoProps]);
-  const handleSeeked = useCallback((event: SyntheticEvent<HTMLVideoElement>) => {
-    if (Math.abs(event.currentTarget.currentTime - startTime) <= .05) setPlaybackReady(true);
-    videoProps?.onSeeked?.(event);
-  }, [startTime, videoProps]);
-  const handleSeeking = useCallback((event: SyntheticEvent<HTMLVideoElement>) => {
-    syncTimelineAt(event.currentTarget.currentTime * 1000);
-    videoProps?.onSeeking?.(event);
-  }, [syncTimelineAt, videoProps]);
-  const handleTimeUpdate = useCallback((event: SyntheticEvent<HTMLVideoElement>) => {
-    syncTimelineAt(event.currentTarget.currentTime * 1000);
-    videoProps?.onTimeUpdate?.(event);
-  }, [syncTimelineAt, videoProps]);
-  const recordingAspectRatio = displayAspectRatio ?? (viewportSize ? `${viewportSize.width} / ${viewportSize.height}` : undefined);
+  const handleEnded = useCallback(
+    (event: SyntheticEvent<HTMLVideoElement>) => {
+      timelineIndexRef.current = -1;
+      setTimelineState({});
+      onEnded?.(event);
+    },
+    [onEnded],
+  );
+  const handleLoadedMetadata = useCallback(
+    (event: SyntheticEvent<HTMLVideoElement>) => {
+      const video = event.currentTarget;
+      const target = Math.min(
+        Math.max(0, startTime),
+        Number.isFinite(video.duration) ? video.duration : startTime,
+      );
+      if (target > 0 && Math.abs(video.currentTime - target) > 0.05) {
+        video.currentTime = target;
+      } else setPlaybackReady(true);
+      videoProps?.onLoadedMetadata?.(event);
+    },
+    [startTime, videoProps],
+  );
+  const handleSeeked = useCallback(
+    (event: SyntheticEvent<HTMLVideoElement>) => {
+      if (Math.abs(event.currentTarget.currentTime - startTime) <= 0.05)
+        setPlaybackReady(true);
+      videoProps?.onSeeked?.(event);
+    },
+    [startTime, videoProps],
+  );
+  const handleSeeking = useCallback(
+    (event: SyntheticEvent<HTMLVideoElement>) => {
+      syncTimelineAt(event.currentTarget.currentTime * 1000);
+      videoProps?.onSeeking?.(event);
+    },
+    [syncTimelineAt, videoProps],
+  );
+  const handleTimeUpdate = useCallback(
+    (event: SyntheticEvent<HTMLVideoElement>) => {
+      syncTimelineAt(event.currentTarget.currentTime * 1000);
+      videoProps?.onTimeUpdate?.(event);
+    },
+    [syncTimelineAt, videoProps],
+  );
+  const recordingAspectRatio =
+    displayAspectRatio ??
+    (viewportSize
+      ? `${viewportSize.width} / ${viewportSize.height}`
+      : undefined);
   const rootStyle = {
     ...style,
-    ...(recordingAspectRatio ? { "--bui-browser-aspect-ratio": recordingAspectRatio } : {}),
+    ...(recordingAspectRatio
+      ? { "--bui-browser-aspect-ratio": recordingAspectRatio }
+      : {}),
   } as CSSProperties;
 
-  return <BrowserRoot
-    {...rootProps}
-    className={className}
-    colorScheme={colorScheme}
-    defaultMode={defaultMode}
-    mode={mode}
-    onModeChange={onModeChange}
-    style={rootStyle}
-    variant={variant}
-  >
-    <BrowserSurface
-      className="bui-browser-surface bui-recording-surface"
-      overlay={<>
-        {operating ? <BrowserOperatingOverlay label={timelineState.operatingLabel ?? operatingLabel} onTakeControl={onTakeControl} shader={operatingShader} /> : null}
-        {timelineState.agentCursor ?? agentCursor ? <BrowserAgentCursor {...(timelineState.agentCursor ?? agentCursor)!} /> : null}
-      </>}
-      style={{ aspectRatio: recordingAspectRatio }}
+  const visibleAgentCursor = timelineState.agentCursor ?? agentCursor;
+
+  return (
+    <BrowserRoot
+      {...rootProps}
+      className={className}
+      colorScheme={colorScheme}
+      defaultMode={defaultMode}
+      mode={mode}
+      onModeChange={onModeChange}
+      style={rootStyle}
+      variant={variant}
     >
-      <video
-        {...videoProps}
-        ref={setVideoNode}
-        aria-label={ariaLabel}
-        autoPlay={autoPlay && playbackReady}
-        className={["bui-recording", videoClassName].filter(Boolean).join(" ")}
-        loop={loop}
-        muted={muted}
-        onEnded={handleEnded}
-        onLoadedMetadata={handleLoadedMetadata}
-        onSeeked={handleSeeked}
-        onSeeking={handleSeeking}
-        onTimeUpdate={handleTimeUpdate}
-        playsInline
-        preload={preload}
-        src={src}
-      />
-      {showPictureInPicture || showFullscreen || displayControls ? <BrowserDisplayControls className={displayControlsClassName}>
-        {displayControls}
-        {showPictureInPicture ? <BrowserPictureInPictureTrigger /> : null}
-        {showFullscreen ? <BrowserFullscreenTrigger /> : null}
-      </BrowserDisplayControls> : null}
-    </BrowserSurface>
-  </BrowserRoot>;
+      <BrowserSurface
+        className="bui-browser-surface bui-recording-surface"
+        overlay={
+          <>
+            {operating ? (
+              <BrowserOperatingOverlay
+                label={timelineState.operatingLabel ?? operatingLabel}
+                onTakeControl={onTakeControl}
+                shader={operatingShader}
+              />
+            ) : null}
+            {visibleAgentCursor ? (
+              <BrowserAgentCursor {...visibleAgentCursor} />
+            ) : null}
+          </>
+        }
+        style={{ aspectRatio: recordingAspectRatio }}
+      >
+        <video
+          {...videoProps}
+          ref={setVideoNode}
+          aria-label={ariaLabel}
+          autoPlay={autoPlay && playbackReady}
+          className={["bui-recording", videoClassName]
+            .filter(Boolean)
+            .join(" ")}
+          loop={loop}
+          muted={muted}
+          onEnded={handleEnded}
+          onLoadedMetadata={handleLoadedMetadata}
+          onSeeked={handleSeeked}
+          onSeeking={handleSeeking}
+          onTimeUpdate={handleTimeUpdate}
+          playsInline
+          preload={preload}
+          src={src}
+        />
+        {showPictureInPicture || showFullscreen || displayControls ? (
+          <BrowserDisplayControls className={displayControlsClassName}>
+            {displayControls}
+            {showPictureInPicture ? <BrowserPictureInPictureTrigger /> : null}
+            {showFullscreen ? <BrowserFullscreenTrigger /> : null}
+          </BrowserDisplayControls>
+        ) : null}
+      </BrowserSurface>
+    </BrowserRoot>
+  );
 });
 
 function recordingTimelineState(
@@ -261,7 +359,9 @@ function recordingTimelineState(
   let index = -1;
   while (low <= high) {
     const middle = (low + high) >> 1;
-    if (entries[middle].at <= elapsed) {
+    const entry = entries[middle];
+    if (!entry) break;
+    if (entry.at <= elapsed) {
       index = middle;
       low = middle + 1;
     } else high = middle - 1;
@@ -269,9 +369,15 @@ function recordingTimelineState(
   if (index < 0) return { index, state: {} };
   let agentCursor: BrowserAgentCursorState | undefined;
   let operatingLabel: string | undefined;
-  for (let current = index; current >= 0 && (agentCursor === undefined || operatingLabel === undefined); current -= 1) {
-    agentCursor ??= entries[current].agentCursor;
-    operatingLabel ??= entries[current].operatingLabel;
+  for (
+    let current = index;
+    current >= 0 && (agentCursor === undefined || operatingLabel === undefined);
+    current -= 1
+  ) {
+    const entry = entries[current];
+    if (!entry) continue;
+    agentCursor ??= entry.agentCursor;
+    operatingLabel ??= entry.operatingLabel;
   }
   return { index, state: { agentCursor, operatingLabel } };
 }

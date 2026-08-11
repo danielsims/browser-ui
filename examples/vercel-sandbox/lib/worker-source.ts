@@ -1,12 +1,16 @@
-export const SANDBOX_PACKAGE_JSON = JSON.stringify({
-  name: "browser-ui-sandbox-runtime",
-  private: true,
-  type: "module",
-  dependencies: {
-    "@browser-ui/gateway": "^0.2.0",
-    "agent-browser": "0.33.1",
+export const SANDBOX_PACKAGE_JSON = JSON.stringify(
+  {
+    name: "browser-ui-sandbox-runtime",
+    private: true,
+    type: "module",
+    dependencies: {
+      "@browser-ui/gateway": "^0.2.0",
+      "agent-browser": "0.33.1",
+    },
   },
-}, null, 2);
+  null,
+  2,
+);
 
 export const SANDBOX_WORKER_SOURCE = String.raw`
 import { execFile } from "node:child_process";

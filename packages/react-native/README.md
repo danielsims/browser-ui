@@ -35,11 +35,7 @@ Set `interactive` and pass host-projected access only after your application has
 acquired control of the session:
 
 ```tsx
-<AgentBrowserView
-  access={session.access}
-  streamUrl={streamUrl}
-  interactive
-/>
+<AgentBrowserView access={session.access} streamUrl={streamUrl} interactive />
 ```
 
 Touch taps become mouse clicks. Touch drags become coalesced wheel input. Mouse and trackpad pointer events are forwarded as mouse input on platforms that expose React Native pointer events.

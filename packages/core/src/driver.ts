@@ -57,12 +57,15 @@ export function isBrowserDriverDescriptor(
     !boundedIdentifier(value.id) ||
     !browserDriverKinds.includes(value.kind as BrowserDriverKind) ||
     !Array.isArray(value.capabilities)
-  ) return false;
+  )
+    return false;
   const unique = new Set(value.capabilities);
-  return unique.size === value.capabilities.length &&
+  return (
+    unique.size === value.capabilities.length &&
     value.capabilities.every((capability) =>
-      browserDriverCapabilities.includes(capability as BrowserDriverCapability)
-    );
+      browserDriverCapabilities.includes(capability as BrowserDriverCapability),
+    )
+  );
 }
 
 export function createBrowserDriverDescriptor(

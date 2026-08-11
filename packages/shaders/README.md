@@ -16,12 +16,12 @@ import {
 
 const variant = "tide";
 const fragmentSource = operatingShaderFragmentSources[variant];
-const direction = operatingShaderDirections[
-  operatingShaderMeta[variant].defaultDirection
-].vector;
-const cycleSeconds = operatingShaderSpeeds[
-  operatingShaderMeta[variant].defaultSpeed
-].durationSeconds;
+const direction =
+  operatingShaderDirections[operatingShaderMeta[variant].defaultDirection]
+    .vector;
+const cycleSeconds =
+  operatingShaderSpeeds[operatingShaderMeta[variant].defaultSpeed]
+    .durationSeconds;
 ```
 
 Consumers own compilation, uniforms, canvas lifecycle, and rendering. Prism,

@@ -8,15 +8,9 @@ export interface BrowserPrincipal {
 
 /** Capabilities the session gateway, not the UI, must enforce. */
 export type BrowserSessionCapability =
-  | "observe"
-  | "control"
-  | "manage"
-  | "terminate";
+  "observe" | "control" | "manage" | "terminate";
 
-export type BrowserSessionVisibility =
-  | "owner-only"
-  | "channel"
-  | "explicit";
+export type BrowserSessionVisibility = "owner-only" | "channel" | "explicit";
 
 export interface BrowserAudienceRule {
   scope: BrowserSessionVisibility;
@@ -75,11 +69,15 @@ export function canManageBrowserControl(access: BrowserSessionAccess): boolean {
 
 /** Client-side input gate. The gateway must independently enforce the lease. */
 export function canSendBrowserInput(access: BrowserSessionAccess): boolean {
-  const leaseExpiry = access.lease ? Date.parse(access.lease.expiresAt) : Number.NaN;
-  return access.sensitive !== true &&
+  const leaseExpiry = access.lease
+    ? Date.parse(access.lease.expiresAt)
+    : Number.NaN;
+  return (
+    access.sensitive !== true &&
     access.capabilities.includes("control") &&
     access.controller?.id === access.viewer.id &&
     access.lease?.holder.id === access.viewer.id &&
     Number.isFinite(leaseExpiry) &&
-    leaseExpiry > Date.now();
+    leaseExpiry > Date.now()
+  );
 }
