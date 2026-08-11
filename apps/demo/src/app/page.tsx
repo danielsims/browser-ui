@@ -10,10 +10,11 @@ import type {
   BrowserDisplayMode,
   BrowserViewportStatus,
 } from "@browser-ui/react";
-import { Browser, BrowserRecording } from "@browser-ui/react";
+import { AgentBrowser, BrowserRecording } from "@browser-ui/react";
 
 import type { WorkflowId } from "../workflows";
 import { workflows } from "../workflows";
+import { browserPropGroups } from "./browser-props";
 import { BrowserStreamReplay } from "./stream-replay";
 
 const desktopViewport = { width: 1440, height: 900 } as const;
@@ -21,188 +22,47 @@ const enterPictureInPictureAt = 0.24;
 const returnInlineAt = 0.52;
 const workflowTransitionDelayMs = 2_400;
 const recordedPlaybackRate = 1;
+const demoOperatingShader = {
+  variant: "tide",
+  direction: "top-left-to-bottom-right",
+  speed: "fast",
+} as const;
 
-const usageCode = `import { Browser } from "@browser-ui/react";
+const usageCode = `import { AgentBrowser } from "@browser-ui/react";
 
-type AgentBrowserProps = {
+type SessionBrowserProps = {
   streamUrl: string;
   operating: boolean;
   action?: string;
   onTakeControl: () => void;
+  onEndSession: () => Promise<void> | void;
 };
 
-export function AgentBrowser({
+export function SessionBrowser({
   streamUrl,
   operating,
   action,
   onTakeControl,
-}: AgentBrowserProps) {
+  onEndSession,
+}: SessionBrowserProps) {
   return (
-    <Browser
+    <AgentBrowser
       streamUrl={streamUrl}
       viewportSize={{ width: 1440, height: 900 }}
       operating={operating}
       operatingLabel={action}
+      operatingShader={{
+        variant: "tide",
+        direction: "top-left-to-bottom-right",
+        speed: "fast",
+      }}
       showPictureInPicture
       showFullscreen
       onTakeControl={onTakeControl}
+      onEndSession={onEndSession}
     />
   );
 }`;
-
-const propGroups = [
-  {
-    title: "Stream",
-    props: [
-      [
-        "streamUrl",
-        "string · required",
-        "WebSocket endpoint returned by agent-browser. Frames and user input travel over this connection.",
-      ],
-      [
-        "viewportSize",
-        "{ width, height }",
-        "Remote browser resolution, independent from the rendered component. Keep it fixed to preserve desktop breakpoints in PiP.",
-      ],
-      [
-        "displayAspectRatio",
-        "CSS aspect-ratio",
-        "Shape of the rendered component only. It never changes the remote viewport.",
-      ],
-      [
-        "colorScheme",
-        '"light" | "dark" | "system"',
-        "Controls Browser UI chrome independently from the streamed page. System follows the host device preference.",
-      ],
-      [
-        "onUrlChange",
-        "(url) => void",
-        "Reports navigation messages emitted by the remote browser.",
-      ],
-      [
-        "onViewportResize",
-        "(width, height) => void",
-        "Reports the requested remote viewport dimensions to the session owner.",
-      ],
-      [
-        "onStatusChange",
-        "(status) => void",
-        "Reports connecting, connected, disconnected and error states.",
-      ],
-    ],
-  },
-  {
-    title: "Agent activity",
-    props: [
-      [
-        "operating",
-        "boolean · false",
-        "Shows the activity shader and pauses direct viewport input while the agent owns the session.",
-      ],
-      [
-        "operatingLabel",
-        "string",
-        "Current action displayed in the compact status control.",
-      ],
-      [
-        "agentCursor",
-        "BrowserAgentCursorState",
-        "Normalized cursor position and pressed or typing state for visualizing live or recorded agent actions.",
-      ],
-      [
-        "agentCursor.size",
-        "number · 24",
-        "Controls the rendered cursor width in CSS pixels.",
-      ],
-      [
-        "agentCursor.backgroundColor",
-        "CSS color · #2f6bff",
-        "Controls the soft radial glow beneath the cursor.",
-      ],
-      [
-        "onTakeControl",
-        "() => void",
-        "Called when the person stops the workflow and takes ownership of browser input.",
-      ],
-      [
-        "loadingLabel",
-        "string",
-        "Copy shown while the WebSocket is connecting or reconnecting.",
-      ],
-    ],
-  },
-  {
-    title: "Display",
-    props: [
-      [
-        "variant",
-        '"framed" | "bare"',
-        "Use the standalone glass frame or an unstyled edge-to-edge surface.",
-      ],
-      [
-        "showControls",
-        "boolean · false",
-        "Adds the optional address and reload controls.",
-      ],
-      [
-        "showPictureInPicture",
-        "boolean · false",
-        "Adds the floating picture-in-picture control.",
-      ],
-      [
-        "showFullscreen",
-        "boolean · false",
-        "Adds application fullscreen without changing the remote viewport size.",
-      ],
-      [
-        "fullscreenTarget",
-        "HTMLElement | null",
-        "Constrains fullscreen to a host element and tracks its bounds and border radius.",
-      ],
-      [
-        "mode",
-        '"inline" | "picture-in-picture" | "fullscreen"',
-        "Controls the display mode from your application.",
-      ],
-      [
-        "defaultMode",
-        'display mode · "inline"',
-        "Initial display mode when Browser manages its own state.",
-      ],
-      [
-        "onModeChange",
-        "(mode) => void",
-        "Reports transitions between inline, PiP and fullscreen.",
-      ],
-    ],
-  },
-  {
-    title: "Navigation",
-    props: [
-      ["url", "string", "Current URL shown by the optional controls."],
-      [
-        "onNavigate",
-        "(url) => void",
-        "Receives address submissions so the session owner can navigate agent-browser.",
-      ],
-      [
-        "onReload",
-        "() => void",
-        "Receives reload requests from the optional browser controls.",
-      ],
-      [
-        "ariaLabel",
-        "string",
-        "Accessible name for the interactive remote viewport.",
-      ],
-      [
-        "viewportClassName",
-        "string",
-        "Class name applied directly to AgentBrowserViewport.",
-      ],
-    ],
-  },
-] as const;
 
 interface WorkflowMessage {
   type:
@@ -334,6 +194,7 @@ function RecordedBrowserPreview({
       onModeChange={onModeChange}
       operating={operating}
       operatingLabel={label}
+      operatingShader={demoOperatingShader}
       onEnded={onEnded}
       playbackRate={recordedPlaybackRate}
       preload="auto"
@@ -631,12 +492,13 @@ export default function Home() {
       <section className="demo">
         <div className="demo-preview" ref={previewRef}>
           {activeStreamUrl ? (
-            <Browser
+            <AgentBrowser
               streamUrl={activeStreamUrl}
               viewportSize={desktopViewport}
               url={liveUrl}
               operating={operating}
               operatingLabel={actionLabel}
+              operatingShader={demoOperatingShader}
               agentCursor={agentCursor}
               mode={displayMode}
               showPictureInPicture
@@ -759,7 +621,7 @@ export default function Home() {
             provides sensible defaults for presentation.
           </p>
         </header>
-        {propGroups.map((group) => (
+        {browserPropGroups.map((group) => (
           <div className="prop-group" key={group.title}>
             <h3>{group.title}</h3>
             <div>
