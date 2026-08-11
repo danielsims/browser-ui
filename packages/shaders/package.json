@@ -1,0 +1,54 @@
+{
+  "name": "@browser-ui/shaders",
+  "version": "0.0.0",
+  "description": "Framework-neutral operating shader sources and configuration for Browser UI.",
+  "keywords": [
+    "browser-ui",
+    "glsl",
+    "shader",
+    "webgl"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/danielsims/browser-ui#readme",
+  "bugs": {
+    "url": "https://github.com/danielsims/browser-ui/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/danielsims/browser-ui.git",
+    "directory": "packages/shaders"
+  },
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./manifest.json": "./dist/assets/manifest.json",
+    "./vertex.vert": "./dist/assets/vertex.vert",
+    "./subtle.frag": "./dist/assets/subtle.frag",
+    "./prism.frag": "./dist/assets/prism.frag",
+    "./pulse.frag": "./dist/assets/pulse.frag",
+    "./tide.frag": "./dist/assets/tide.frag"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --clean --format esm,cjs --dts && node scripts/export-assets.mjs",
+    "prepack": "pnpm run build",
+    "sync:flutter": "pnpm run build && node scripts/sync-flutter.mjs",
+    "sync:swift": "pnpm run build && node scripts/sync-swift.mjs",
+    "test": "pnpm run build && node --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}

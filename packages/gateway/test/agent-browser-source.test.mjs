@@ -4,7 +4,17 @@ import WebSocket, { WebSocketServer } from "ws";
 import { decodeBrowserSessionBinaryFrame } from "@browser-ui/core";
 
 import { createBrowserSessionGateway } from "../dist/index.js";
-import { relayAgentBrowserSession, validateLoopbackStreamUrl } from "../dist/agent-browser/index.js";
+import {
+  agentBrowserDriverDescriptor,
+  relayAgentBrowserSession,
+  validateLoopbackStreamUrl,
+} from "../dist/agent-browser/index.js";
+
+test("advertises upstream agent-browser separately from native WebKit", () => {
+  assert.equal(agentBrowserDriverDescriptor.kind, "agent-browser");
+  assert.ok(agentBrowserDriverDescriptor.capabilities.includes("remote-frame-stream"));
+  assert.equal(agentBrowserDriverDescriptor.capabilities.includes("native-surface"), false);
+});
 
 test("only accepts private loopback agent-browser sockets", () => {
   assert.equal(validateLoopbackStreamUrl("ws://127.0.0.1:9223"), "ws://127.0.0.1:9223/");

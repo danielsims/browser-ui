@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "endReasons": ["completed", "user-ended", "replaced", "unavailable"],
+  "releaseOutcomes": ["completed", "waiting"],
+  "viewportModes": ["preview", "takeover"],
+  "validRequests": [
+    {
+      "version": 1,
+      "sessionId": "bs_test_session",
+      "clientInstanceId": "client_01",
+      "reason": "user-ended"
+    },
+    {
+      "version": 1,
+      "sessionId": "session-2",
+      "clientInstanceId": "device_phone",
+      "reason": "completed"
+    }
+  ],
+  "invalidRequests": [
+    {
+      "version": 1,
+      "sessionId": "",
+      "clientInstanceId": "client_01",
+      "reason": "user-ended"
+    },
+    {
+      "version": 1,
+      "sessionId": "bs_test_session",
+      "clientInstanceId": "client 01",
+      "reason": "user-ended"
+    },
+    {
+      "version": 1,
+      "sessionId": "bs_test_session",
+      "clientInstanceId": "client_01",
+      "reason": "closed"
+    }
+  ],
+  "receipt": {
+    "version": 1,
+    "sessionId": "bs_test_session",
+    "status": "ended",
+    "reason": "user-ended",
+    "endedAt": "2026-08-10T05:00:00Z"
+  },
+  "validReleaseRequests": [
+    {
+      "version": 1,
+      "releaseId": "release_01",
+      "sessionId": "bs_test_session",
+      "outcome": "completed",
+      "label": "Configured the product",
+      "url": "https://example.com/configure",
+      "title": "Configure"
+    },
+    {
+      "version": 1,
+      "releaseId": "release_02",
+      "sessionId": "session-2",
+      "outcome": "waiting"
+    }
+  ],
+  "invalidReleaseRequests": [
+    {
+      "version": 1,
+      "releaseId": "",
+      "sessionId": "bs_test_session",
+      "outcome": "completed"
+    },
+    {
+      "version": 1,
+      "releaseId": "release_03",
+      "sessionId": "bs_test_session",
+      "outcome": "closed"
+    },
+    {
+      "version": 1,
+      "releaseId": "release_04",
+      "sessionId": "bs_test_session",
+      "outcome": "waiting",
+      "url": "https://user:secret@example.com"
+    }
+  ],
+  "releaseReceipt": {
+    "version": 1,
+    "releaseId": "release_01",
+    "sessionId": "bs_test_session",
+    "status": "released",
+    "outcome": "completed",
+    "label": "Configured the product",
+    "url": "https://example.com/configure",
+    "title": "Configure",
+    "releasedAt": "2026-08-10T05:00:00Z"
+  }
+}

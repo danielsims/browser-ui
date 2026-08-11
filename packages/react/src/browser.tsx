@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { AgentBrowserViewport, type AgentBrowserViewportProps, type BrowserViewportSize } from "./agent-browser-viewport";
 import { BrowserOperatingOverlay } from "./operating-overlay";
-import { BrowserDisplayControls, BrowserFullscreenTrigger, BrowserPictureInPictureTrigger } from "./browser-display";
+import type { BrowserOperatingShaderOptions } from "./operating-shader";
+import { BrowserDisplayControls, BrowserEndSessionTrigger, BrowserFullscreenTrigger, BrowserPictureInPictureTrigger } from "./browser-display";
 import { BrowserRoot, type BrowserRootProps } from "./browser-root";
 import { BrowserLoading, BrowserSurface } from "./browser-surface";
 import { BrowserToolbar } from "./browser-toolbar";
@@ -28,11 +29,16 @@ export interface BrowserProps extends Pick<BrowserRootProps, "className" | "colo
   /** Enables local input intent. Defaults to false and still requires gateway-projected access when provided. */
   interactive?: boolean;
   operatingLabel?: string;
+  /** Visual treatment for the active agent overlay. */
+  operatingShader?: BrowserOperatingShaderOptions;
   /** Optional normalized agent cursor rendered over the live viewport. */
   agentCursor?: BrowserAgentCursorState;
   loadingLabel?: string;
   showPictureInPicture?: boolean;
   showFullscreen?: boolean;
+  /** Shows the package-owned terminal lifecycle action when supplied. */
+  onEndSession?: () => Promise<void> | void;
+  endSessionLabel?: string;
   /** Additional controls rendered in Browser UI's top-right display-control strip. */
   displayControls?: ReactNode;
   /** Optional class applied to the package-owned display-control strip. */
@@ -47,7 +53,7 @@ export interface BrowserProps extends Pick<BrowserRootProps, "className" | "colo
 }
 
 /** Composed browser viewer for the official agent-browser stream protocol. */
-export function Browser({
+export function AgentBrowser({
   ariaLabel,
   access,
   agentCursor,
@@ -63,6 +69,7 @@ export function Browser({
   loadingLabel = "Opening browser",
   onNavigate,
   onActivityChange,
+  onEndSession,
   onModeChange,
   onReload,
   onStatusChange,
@@ -72,6 +79,7 @@ export function Browser({
   onViewportResize,
   operating = false,
   operatingLabel = "Agent is operating this browser",
+  operatingShader,
   protocols,
   resolveConnection,
   mode,
@@ -84,6 +92,7 @@ export function Browser({
   variant = "framed",
   viewportSize,
   viewportClassName,
+  endSessionLabel,
 }: BrowserProps) {
   const [status, setStatus] = useState<BrowserViewportStatus>("connecting");
   const [draftUrl, setDraftUrl] = useState(url);
@@ -160,7 +169,7 @@ export function Browser({
       loading={loading}
       loadingFallback={<BrowserLoading label={loadingCopy} />}
       overlay={<>
-        {activelyOperating ? <BrowserOperatingOverlay label={activeOperatingLabel} onTakeControl={onTakeControl} /> : null}
+        {activelyOperating ? <BrowserOperatingOverlay label={activeOperatingLabel} onTakeControl={onTakeControl} shader={operatingShader} /> : null}
         {activeAgentCursor ? <BrowserAgentCursor {...activeAgentCursor} /> : null}
       </>}
     >
@@ -180,11 +189,16 @@ export function Browser({
         onUrlChange={handleUrlChange}
         onViewportResize={onViewportResize}
       />
-      {showPictureInPicture || showFullscreen || displayControls ? <BrowserDisplayControls className={displayControlsClassName}>
+      {showPictureInPicture || showFullscreen || displayControls || onEndSession ? <BrowserDisplayControls className={displayControlsClassName}>
         {displayControls}
         {showPictureInPicture ? <BrowserPictureInPictureTrigger /> : null}
         {showFullscreen ? <BrowserFullscreenTrigger /> : null}
+        {onEndSession ? <BrowserEndSessionTrigger endLabel={endSessionLabel} onEndSession={onEndSession} /> : null}
       </BrowserDisplayControls> : null}
     </BrowserSurface>
   </BrowserRoot>;
 }
+
+/** Backward-compatible concise name for the agent-browser stream viewer. */
+export const Browser = AgentBrowser;
+export type AgentBrowserProps = BrowserProps;

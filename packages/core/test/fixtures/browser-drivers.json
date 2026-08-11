@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "kinds": ["agent-browser", "webkit"],
+  "capabilities": [
+    "navigation",
+    "history",
+    "semantic-snapshot",
+    "screenshot",
+    "element-click",
+    "text-input",
+    "keyboard-input",
+    "script-evaluation",
+    "viewport",
+    "native-surface",
+    "remote-frame-stream",
+    "pointer-input",
+    "wait",
+    "scroll",
+    "hover",
+    "drag-and-drop",
+    "selection",
+    "tabs",
+    "dialogs",
+    "downloads",
+    "uploads",
+    "cookies",
+    "storage",
+    "network-inspection",
+    "console",
+    "pdf",
+    "recording"
+  ],
+  "descriptors": [
+    {
+      "version": 1,
+      "id": "agent_browser_remote",
+      "kind": "agent-browser",
+      "capabilities": [
+        "navigation",
+        "history",
+        "semantic-snapshot",
+        "screenshot",
+        "element-click",
+        "text-input",
+        "keyboard-input",
+        "script-evaluation",
+        "viewport",
+        "remote-frame-stream",
+        "pointer-input",
+        "wait",
+        "scroll",
+        "hover",
+        "drag-and-drop",
+        "selection",
+        "tabs",
+        "dialogs",
+        "downloads",
+        "uploads",
+        "cookies",
+        "storage",
+        "network-inspection",
+        "console",
+        "pdf",
+        "recording"
+      ]
+    },
+    {
+      "version": 1,
+      "id": "webkit_native",
+      "kind": "webkit",
+      "capabilities": [
+        "navigation",
+        "history",
+        "semantic-snapshot",
+        "screenshot",
+        "element-click",
+        "text-input",
+        "keyboard-input",
+        "script-evaluation",
+        "viewport",
+        "native-surface",
+        "pointer-input",
+        "wait",
+        "scroll",
+        "selection"
+      ]
+    }
+  ],
+  "invalidDescriptors": [
+    {
+      "version": 1,
+      "id": "",
+      "kind": "webkit",
+      "capabilities": []
+    },
+    {
+      "version": 1,
+      "id": "driver_one",
+      "kind": "chromium",
+      "capabilities": []
+    },
+    {
+      "version": 1,
+      "id": "driver_one",
+      "kind": "webkit",
+      "capabilities": ["tabs", "tabs"]
+    }
+  ]
+}

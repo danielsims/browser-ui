@@ -14,15 +14,21 @@ npm install @browser-ui/react
 ## Usage
 
 ```tsx
-import { Browser } from "@browser-ui/react";
+import { AgentBrowser } from "@browser-ui/react";
 import "@browser-ui/react/styles.css"; // Optional reference theme.
 
-<Browser
+<AgentBrowser
   streamUrl={session.streamUrl}
   viewportSize={{ width: 1440, height: 900 }}
   operating={session.agentActive}
   operatingLabel={session.currentTask}
+  operatingShader={{
+    variant: "tide",
+    direction: "top-left-to-bottom-right",
+    speed: "fast",
+  }}
   onTakeControl={session.takeControl}
+  onEndSession={session.end}
   showPictureInPicture
   showFullscreen
 />
@@ -33,13 +39,38 @@ attributes. Import the optional stylesheet above as a reference theme, or style
 the primitives with the host application's design system.
 
 The host owns the browser process, stream URL, navigation, and workflow state.
-`Browser` owns the interactive viewport, visual agent activity, and display
+`AgentBrowser` owns the interactive viewport, visual agent activity, and display
 modes for inline, picture-in-picture, and fullscreen use.
+
+`Browser` remains an equivalent compatibility export. Use `AgentBrowser` when
+the driver distinction should be explicit beside native WebKit surfaces.
 
 Pointer, keyboard, paste, and wheel input are forwarded by the live viewport.
 Wheel capture works inside nested application scrollers and fullscreen layouts,
 including WebKit's legacy trackpad events, so hosts should not create a
 second WebSocket or install their own browser-input boundary.
+
+## Operating shaders
+
+The active-agent overlay defaults to the original `subtle` shader. `prism`,
+`pulse`, and `tide` add directional sweeps with live direction and speed
+updates. Use the same options on `Browser`, `BrowserRecording`, or the lower
+level shader primitive:
+
+```tsx
+<BrowserOperatingShader
+  variant="pulse"
+  direction="left-to-right"
+  speed="fast"
+/>
+```
+
+Directions include all four cardinal and four diagonal paths. `slow` is a
+15-second cycle and `fast` is a 7-second cycle. Prism defaults to slow
+left-to-right movement; Pulse defaults to fast left-to-right movement; Tide
+defaults to fast top-left-to-bottom-right movement. Direction and speed are
+intentionally ignored by `subtle` so its established appearance remains
+backward compatible.
 
 Pass `fullscreenTarget` when fullscreen should fill an application panel rather
 than the complete viewport. Browser UI tracks the element's bounds, radius, and
@@ -67,33 +98,29 @@ without moving workflow behavior into the package:
 import {
   Browser,
   BrowserDisplayTrigger,
-  BrowserFullscreenTrigger,
 } from "@browser-ui/react";
 
 <Browser
   streamUrl={session.streamUrl}
+  onEndSession={session.end}
   displayControls={
-    <>
-      <BrowserDisplayTrigger
-        aria-label="Open in primary browser"
-        onClick={session.openExternally}
-      >
-        <ExternalLinkIcon />
-      </BrowserDisplayTrigger>
-      <BrowserFullscreenTrigger />
-      <BrowserDisplayTrigger
-        aria-label="End browser session"
-        onClick={session.end}
-      >
-        <CloseIcon />
-      </BrowserDisplayTrigger>
-    </>
+    <BrowserDisplayTrigger
+      aria-label="Open in primary browser"
+      onClick={session.openExternally}
+    >
+      <ExternalLinkIcon />
+    </BrowserDisplayTrigger>
   }
+  showFullscreen
 />
 ```
 
 Use `displayControlsClassName` to adjust how a host's controls reveal while
 keeping them inside Browser UI's package-owned top-right rail.
+
+`onEndSession` renders the package-owned terminal action. It must terminate the
+underlying browser and persist the returned receipt. Exiting fullscreen or
+unmounting `Browser` must never call it implicitly.
 
 ## Access and control
 

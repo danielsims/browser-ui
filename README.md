@@ -1,7 +1,6 @@
 # Browser UI
 
-React, React Native, and Flutter components for live
-[`agent-browser`](https://github.com/vercel-labs/agent-browser) sessions.
+React, React Native, Flutter, and Swift components for agent-operated browsers.
 
 Browser UI renders the stream and forwards user input. Your application owns
 the browser process, workflow, authentication, authorization, and session
@@ -47,6 +46,7 @@ import "@browser-ui/react/styles.css";
   interactive={session.hasControl}
   operating={session.agentActive}
   operatingLabel={session.currentTask}
+  onEndSession={() => session.end()}
   showPictureInPicture
   showFullscreen
 />
@@ -65,11 +65,32 @@ See the [live demo](https://browser-ui-red.vercel.app).
 | [`@browser-ui/react`](https://www.npmjs.com/package/@browser-ui/react) | React | Browser chrome, live streams, recordings, PiP, and fullscreen |
 | [`@browser-ui/react-native`](https://www.npmjs.com/package/@browser-ui/react-native) | React Native / Expo | Native stream viewer and browser sheet |
 | [`browser_ui`](https://pub.dev/packages/browser_ui) | Flutter | Flutter stream controller, viewer, and browser sheet |
+| `BrowserUI` | Swift / SwiftUI | Shared lifecycle, viewport, cursor, chrome, and shader primitives |
+| `BrowserUIWebKit` | Swift / SwiftUI | An on-device WebKit browser that an agent can operate without a remote browser |
 | [`@browser-ui/core`](https://www.npmjs.com/package/@browser-ui/core) | Any JavaScript runtime | Protocol, session, geometry, recording, and access contracts |
 | [`@browser-ui/gateway`](https://www.npmjs.com/package/@browser-ui/gateway) | Node.js | Optional authenticated relay and `agent-browser` source connector |
 
 Each package has its own API documentation and examples. Applications only
 need the package for their platform; the gateway is optional.
+
+Closing a viewer and ending a session are deliberately different actions.
+Closing only changes presentation. Ending is terminal, releases browser
+resources, returns a portable receipt, and can be rendered in the transcript.
+React, Flutter, and Swift validate this contract against the same fixture.
+
+## Browser drivers
+
+Browser UI keeps the browser engine separate from the interface around it:
+
+- `AgentBrowser` renders a live stream from the upstream
+  [`agent-browser`](https://github.com/vercel-labs/agent-browser) runtime. The
+  upstream CLI or MCP server remains responsible for browser automation.
+- `WebKitBrowserDriver` runs directly on iPhone and exposes semantic page
+  snapshots and browser actions without Chromium, a Mac, or a remote service.
+
+Both publish a versioned capability descriptor, so a host can enable only the
+operations its selected driver actually supports. The shared UI and lifecycle
+contracts remain the same; engine-specific automation stays in its driver.
 
 ## Recordings
 

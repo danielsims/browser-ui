@@ -3,14 +3,18 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import 'operating_shader_configuration.dart';
+
 /// Blocks browser input while visualising active agent work.
 final class BrowserOperatingOverlay extends StatefulWidget {
   const BrowserOperatingOverlay({
     this.label = 'Agent is operating this browser',
+    this.shader = const BrowserOperatingShaderConfiguration(),
     super.key,
   });
 
   final String label;
+  final BrowserOperatingShaderConfiguration shader;
 
   @override
   State<BrowserOperatingOverlay> createState() =>
@@ -27,20 +31,35 @@ final class _BrowserOperatingOverlayState extends State<BrowserOperatingOverlay>
     super.initState();
     _animation = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 12),
+      // The WebGL and Metal implementations receive monotonic elapsed time.
+      // Use a long-running clock here too; speed belongs to the shader uniform
+      // and changing it must not restart or phase-shift the animation.
+      duration: const Duration(hours: 1),
     );
     unawaited(_animation.repeat());
     unawaited(_loadShader());
   }
 
+  @override
+  void didUpdateWidget(BrowserOperatingOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shader.variant != widget.shader.variant) {
+      _shader?.dispose();
+      _shader = null;
+      unawaited(_loadShader());
+    }
+  }
+
   Future<void> _loadShader() async {
-    for (final asset in const [
-      'packages/browser_ui/shaders/operating_overlay.frag',
-      'shaders/operating_overlay.frag',
+    final requestedVariant = widget.shader.variant;
+    final assetName = requestedVariant.assetName;
+    for (final asset in [
+      'packages/browser_ui/shaders/$assetName',
+      'shaders/$assetName',
     ]) {
       try {
         final program = await ui.FragmentProgram.fromAsset(asset);
-        if (!mounted) return;
+        if (!mounted || widget.shader.variant != requestedVariant) return;
         setState(() => _shader = program.fragmentShader());
         return;
       } on Exception {
@@ -84,7 +103,11 @@ final class _BrowserOperatingOverlayState extends State<BrowserOperatingOverlay>
                   child: CustomPaint(
                     painter: _OperatingShaderPainter(
                       shader: _shader!,
-                      elapsedSeconds: _animation.value * 12,
+                      elapsedSeconds:
+                          _animation.value *
+                          const Duration(hours: 1).inMilliseconds /
+                          1000,
+                      configuration: widget.shader,
                     ),
                   ),
                 ),
@@ -173,10 +196,12 @@ final class _OperatingShaderPainter extends CustomPainter {
   const _OperatingShaderPainter({
     required this.shader,
     required this.elapsedSeconds,
+    required this.configuration,
   });
 
   final ui.FragmentShader shader;
   final double elapsedSeconds;
+  final BrowserOperatingShaderConfiguration configuration;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -184,13 +209,21 @@ final class _OperatingShaderPainter extends CustomPainter {
       ..setFloat(0, size.width)
       ..setFloat(1, size.height)
       ..setFloat(2, elapsedSeconds);
+    if (configuration.variant != BrowserOperatingShaderVariant.subtle) {
+      final direction = configuration.resolvedDirection.vector;
+      shader
+        ..setFloat(3, direction.x)
+        ..setFloat(4, direction.y)
+        ..setFloat(5, 1 / configuration.resolvedSpeed.durationSeconds);
+    }
     canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
   }
 
   @override
   bool shouldRepaint(_OperatingShaderPainter oldDelegate) =>
       oldDelegate.elapsedSeconds != elapsedSeconds ||
-      oldDelegate.shader != shader;
+      oldDelegate.shader != shader ||
+      oldDelegate.configuration != configuration;
 }
 
 final class _OperatingFallbackPainter extends CustomPainter {

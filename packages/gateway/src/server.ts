@@ -5,6 +5,7 @@ import {
   BROWSER_SESSION_BINARY_PROTOCOL,
   BROWSER_SESSION_PROTOCOL,
   BROWSER_SESSION_VERSION,
+  isBrowserSessionEndRequest,
   type BrowserSessionDescriptor,
   type BrowserSessionCapability,
   type BrowserSessionResolvedAccess,
@@ -161,6 +162,9 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
       const sessionId = decodeURIComponent(sourceMatch[1] ?? "");
       const actor = actors.get(sessionId);
       if (!actor) return json(response, 404, { error: "not_found" });
+      if (actor.descriptor.status === "ended") {
+        return json(response, 410, { error: "session_ended" });
+      }
       const principal = await options.authenticate(request, "source:connect");
       if (!principal || principal.id !== actor.producer.id) {
         return json(response, 403, { error: "forbidden" });
@@ -179,6 +183,9 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
       const sessionId = decodeURIComponent(viewerMatch[1] ?? "");
       const actor = actors.get(sessionId);
       if (!actor) return json(response, 404, { error: "not_found" });
+      if (actor.descriptor.status === "ended") {
+        return json(response, 410, { error: "session_ended" });
+      }
       const principal = await options.authenticate(request, "viewer:observe");
       if (!principal) return json(response, 401, { error: "unauthorized" });
       const body = await readJson<Record<string, unknown>>(request, maximumRequestBytes);
@@ -199,6 +206,12 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
         producer: actor.producer,
         capability: "control",
       })) capabilities.push("control");
+      if (await options.authorize({
+        principal,
+        session: actor.descriptor,
+        producer: actor.producer,
+        capability: "terminate",
+      })) capabilities.push("terminate");
       const issued = tickets.issue({
         role: "viewer",
         sessionId,
@@ -250,6 +263,28 @@ export function createBrowserSessionGateway(options: BrowserSessionGatewayOption
         : actor.releaseControl(principal.id, body.clientInstanceId, body.leaseId);
       if (!result.ok) return json(response, 409, { error: result.error });
       json(response, 200, { access: result.access });
+      return;
+    }
+
+    const endMatch = url.pathname.match(/^\/v1\/sessions\/([^/]+)\/end$/);
+    if (request.method === "POST" && endMatch) {
+      const sessionId = decodeURIComponent(endMatch[1] ?? "");
+      const actor = actors.get(sessionId);
+      if (!actor) return json(response, 404, { error: "not_found" });
+      const principal = await options.authenticate(request, "viewer:terminate");
+      if (!principal) return json(response, 401, { error: "unauthorized" });
+      const allowed = await options.authorize({
+        principal,
+        session: actor.descriptor,
+        producer: actor.producer,
+        capability: "terminate",
+      });
+      if (!allowed) return json(response, 403, { error: "forbidden" });
+      const body = await readJson<unknown>(request, maximumRequestBytes);
+      if (!isBrowserSessionEndRequest(body) || body.sessionId !== sessionId) {
+        return json(response, 400, { error: "invalid_end_request" });
+      }
+      json(response, 200, actor.end(body.reason));
       return;
     }
 

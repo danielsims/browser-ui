@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentBrowserViewport } from "../src/agent-browser-viewport";
 import { Browser } from "../src/browser";
 import { BrowserOperatingOverlay } from "../src/operating-overlay";
+import { BrowserOperatingShader } from "../src/operating-shader";
 import { BrowserRecording } from "../src/browser-recording";
 
 type Listener = (event: Event) => void;
@@ -92,6 +93,19 @@ describe("AgentBrowserViewport", () => {
     await waitFor(() => expect(onViewportResize).toHaveBeenCalledWith(1280, 800));
     expect(onViewportResize).toHaveBeenCalledTimes(1);
     expect(MockResizeObserver.observeCount).toBe(0);
+  });
+
+  it("exposes ending as a terminal action distinct from fullscreen", async () => {
+    const onEndSession = vi.fn();
+    render(<Browser
+      streamUrl="ws://127.0.0.1:9223"
+      onEndSession={onEndSession}
+      showFullscreen
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "End browsing session" }));
+    expect(onEndSession).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Open browser full screen" })).toBeTruthy();
   });
 
   it("does not report a usable browser on WebSocket open alone", async () => {
@@ -348,6 +362,47 @@ describe("AgentBrowserViewport", () => {
     expect(takeover.tagName).toBe("DIV");
     fireEvent.click(takeover);
     expect(onTakeControl).toHaveBeenCalledTimes(1);
+  });
+
+  it("projects operating shader options without coupling them to WebGL support", () => {
+    render(<BrowserOperatingShader
+      className="custom-shader"
+      direction="bottom-right-to-top-left"
+      speed="fast"
+      variant="tide"
+    />);
+
+    const shader = document.querySelector("canvas.bui-operating-shader");
+    expect(shader?.classList.contains("custom-shader")).toBe(true);
+    expect(shader?.getAttribute("data-variant")).toBe("tide");
+    expect(shader?.getAttribute("data-direction")).toBe("bottom-right-to-top-left");
+    expect(shader?.getAttribute("data-speed")).toBe("fast");
+  });
+
+  it("passes shader options through the composed Browser surface", async () => {
+    render(<Browser
+      operating
+      operatingShader={{ variant: "pulse", direction: "right-to-left", speed: "slow" }}
+      streamUrl="ws://127.0.0.1:9223"
+    />);
+    MockWebSocket.instances[0].emit("message", new MessageEvent("message", {
+      data: JSON.stringify({
+        type: "status",
+        connected: true,
+        screencasting: true,
+        viewportWidth: 1280,
+        viewportHeight: 800,
+      }),
+    }));
+
+    const shader = await waitFor(() => {
+      const element = document.querySelector("canvas.bui-operating-shader");
+      expect(element).not.toBeNull();
+      return element;
+    });
+    expect(shader?.getAttribute("data-variant")).toBe("pulse");
+    expect(shader?.getAttribute("data-direction")).toBe("right-to-left");
+    expect(shader?.getAttribute("data-speed")).toBe("slow");
   });
 
   it("turns structured browser commands into live operating labels", async () => {

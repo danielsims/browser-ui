@@ -1,13 +1,87 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
   BROWSER_SESSION_PROTOCOL,
+  BROWSER_DRIVER_CONTRACT_VERSION,
+  browserDriverCapabilities,
+  browserDriverKinds,
+  browserViewportPresentationModes,
   createHttpBrowserSessionResolver,
+  createHttpBrowserSessionTerminator,
+  isBrowserSessionReleaseReceipt,
+  isBrowserSessionReleaseRequest,
+  isBrowserSessionEndReceipt,
+  isBrowserSessionEndRequest,
+  isBrowserDriverDescriptor,
   normalizeGatewayOrigin,
   parseBrowserSourceMessage,
   parseBrowserViewerMessage,
 } from "../dist/index.js";
+
+const lifecycleFixture = JSON.parse(await readFile(
+  new URL("./fixtures/session-lifecycle.json", import.meta.url),
+  "utf8",
+));
+const driverFixture = JSON.parse(await readFile(
+  new URL("./fixtures/browser-drivers.json", import.meta.url),
+  "utf8",
+));
+
+test("browser driver capabilities remain portable", () => {
+  assert.equal(driverFixture.version, BROWSER_DRIVER_CONTRACT_VERSION);
+  assert.deepEqual(driverFixture.kinds, browserDriverKinds);
+  assert.deepEqual(driverFixture.capabilities, browserDriverCapabilities);
+  for (const descriptor of driverFixture.descriptors) {
+    assert.equal(isBrowserDriverDescriptor(descriptor), true);
+  }
+  for (const descriptor of driverFixture.invalidDescriptors) {
+    assert.equal(isBrowserDriverDescriptor(descriptor), false);
+  }
+});
+
+test("browser session lifecycle fixtures remain portable", () => {
+  assert.equal(lifecycleFixture.version, 1);
+  assert.deepEqual(lifecycleFixture.viewportModes, browserViewportPresentationModes);
+  for (const request of lifecycleFixture.validRequests) {
+    assert.equal(isBrowserSessionEndRequest(request), true);
+  }
+  for (const request of lifecycleFixture.invalidRequests) {
+    assert.equal(isBrowserSessionEndRequest(request), false);
+  }
+  assert.equal(isBrowserSessionEndReceipt(lifecycleFixture.receipt), true);
+  assert.deepEqual(lifecycleFixture.releaseOutcomes, ["completed", "waiting"]);
+  for (const request of lifecycleFixture.validReleaseRequests) {
+    assert.equal(isBrowserSessionReleaseRequest(request), true);
+  }
+  for (const request of lifecycleFixture.invalidReleaseRequests) {
+    assert.equal(isBrowserSessionReleaseRequest(request), false);
+  }
+  assert.equal(
+    isBrowserSessionReleaseReceipt(lifecycleFixture.releaseReceipt),
+    true,
+  );
+});
+
+test("terminates a session through an authenticated lifecycle request", async () => {
+  let observed;
+  const terminate = createHttpBrowserSessionTerminator({
+    gatewayOrigin: "https://sessions.example.com",
+    authorize: ({ body }) => ({ authorization: `Signed ${body.length}` }),
+    fetch: async (url, init) => {
+      observed = { url, init };
+      return new Response(JSON.stringify(lifecycleFixture.receipt), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  const receipt = await terminate(lifecycleFixture.validRequests[0]);
+  assert.equal(receipt.status, "ended");
+  assert.equal(observed.url, "https://sessions.example.com/v1/sessions/bs_test_session/end");
+  assert.match(observed.init.headers.authorization, /^Signed /);
+});
 
 test("parses bounded source frames and rejects input-shaped viewer messages", () => {
   assert.equal(parseBrowserSourceMessage({

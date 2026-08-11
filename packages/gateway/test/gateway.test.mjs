@@ -57,6 +57,79 @@ test("answers browser preflights only for allowed origins", async (context) => {
   assert.equal(denied.headers.get("access-control-allow-origin"), null);
 });
 
+test("terminates a session only with explicit authorization", async (context) => {
+  let origin = "http://127.0.0.1";
+  const gateway = createBrowserSessionGateway({
+    publicOrigin: () => origin,
+    authenticate(request, action) {
+      if (action.startsWith("source:") && request.headers.authorization === "Bearer source") {
+        return { id: "source", kind: "service" };
+      }
+      if (action === "viewer:terminate" && request.headers.authorization === "Bearer owner") {
+        return { id: "owner", kind: "user" };
+      }
+      if (action === "viewer:observe" && request.headers.authorization === "Bearer owner") {
+        return { id: "owner", kind: "user" };
+      }
+      return null;
+    },
+    authorize: ({ capability }) => capability === "observe" || capability === "terminate",
+  });
+  await new Promise((resolve) => gateway.server.listen(0, "127.0.0.1", resolve));
+  const address = gateway.server.address();
+  assert.ok(address && typeof address === "object");
+  origin = `http://127.0.0.1:${address.port}`;
+  context.after(() => gateway.close());
+
+  const created = await (await fetch(`${origin}/v1/sessions`, {
+    method: "POST",
+    headers: { authorization: "Bearer source", "content-type": "application/json" },
+    body: JSON.stringify({ title: "End me", viewport: { width: 1280, height: 800 } }),
+  })).json();
+  const request = {
+    version: 1,
+    sessionId: created.session.sessionId,
+    clientInstanceId: "owner_phone",
+    reason: "user-ended",
+  };
+  const source = await openSocket(created.sourceConnection);
+  const viewerResolution = await (await fetch(
+    `${origin}/v1/sessions/${created.session.sessionId}/connections`,
+    {
+      method: "POST",
+      headers: { authorization: "Bearer owner", "content-type": "application/json" },
+      body: JSON.stringify({ intent: "observe", clientInstanceId: "owner_phone" }),
+    },
+  )).json();
+  const viewer = await openSocket(viewerResolution.connection);
+  const sourceClosed = new Promise((resolve) => source.once("close", resolve));
+  const viewerClosed = new Promise((resolve) => viewer.once("close", resolve));
+
+  const denied = await fetch(`${origin}/v1/sessions/${created.session.sessionId}/end`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  assert.equal(denied.status, 401);
+
+  const ended = await fetch(`${origin}/v1/sessions/${created.session.sessionId}/end`, {
+    method: "POST",
+    headers: { authorization: "Bearer owner", "content-type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  assert.equal(ended.status, 200);
+  const receipt = await ended.json();
+  assert.equal(receipt.status, "ended");
+  assert.equal(receipt.reason, "user-ended");
+  await Promise.all([sourceClosed, viewerClosed]);
+
+  const reconnect = await fetch(`${origin}/v1/sessions/${created.session.sessionId}/source-connections`, {
+    method: "POST",
+    headers: { authorization: "Bearer source", "content-type": "application/json" },
+  });
+  assert.equal(reconnect.status, 410);
+});
+
 test("fans one source out to view-only authenticated viewers", async (context) => {
   let origin = "http://127.0.0.1";
   const gateway = createBrowserSessionGateway({

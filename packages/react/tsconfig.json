@@ -9,7 +9,8 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@browser-ui/core": ["../core/src/index.ts"]
+      "@browser-ui/core": ["../core/src/index.ts"],
+      "@browser-ui/shaders": ["../shaders/src/index.ts"]
     }
   },
   "include": ["src"]

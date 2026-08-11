@@ -6,6 +6,8 @@ import {
   parseBrowserSourceMessage,
   parseBrowserViewerMessage,
   type BrowserSessionDescriptor,
+  type BrowserSessionEndReason,
+  type BrowserSessionEndReceipt,
   type BrowserSessionActivityMessage,
   type BrowserSessionCapability,
   type BrowserSessionFrameMessage,
@@ -79,6 +81,7 @@ export class BrowserSessionActor {
   #latestFrame: EncodedFrame | null = null;
   #activity: BrowserSessionActivityMessage | null = null;
   #controlLease: ActiveControlLease | null = null;
+  #endReceipt: BrowserSessionEndReceipt | null = null;
   readonly #controlLeaseLifetimeMs: number;
   readonly #onMetric?: BrowserSessionActorOptions["onMetric"];
 
@@ -97,7 +100,11 @@ export class BrowserSessionActor {
   }
 
   attachSource(socket: WebSocket, principalId: string): boolean {
-    if (principalId !== this.producer.id || this.#source?.readyState === WebSocket.OPEN) {
+    if (
+      this.#descriptor.status === "ended" ||
+      principalId !== this.producer.id ||
+      this.#source?.readyState === WebSocket.OPEN
+    ) {
       socket.close(1008, "Source is not authorized");
       return false;
     }
@@ -134,6 +141,10 @@ export class BrowserSessionActor {
     },
     frameEncoding: BrowserSessionFrameEncoding,
   ) {
+    if (this.#descriptor.status === "ended") {
+      socket.close(1008, "Session ended");
+      return;
+    }
     for (const existing of this.#viewers.values()) {
       if (
         existing.principalId === identity.principalId &&
@@ -198,6 +209,31 @@ export class BrowserSessionActor {
       viewer.socket.close(1001, "Gateway shutting down");
     }
     this.#viewers.clear();
+  }
+
+  /** Idempotently enter the terminal lifecycle state and release live resources. */
+  end(reason: BrowserSessionEndReason): BrowserSessionEndReceipt {
+    if (this.#endReceipt) return this.#endReceipt;
+    const receipt: BrowserSessionEndReceipt = {
+      version: BROWSER_SESSION_VERSION,
+      sessionId: this.#descriptor.sessionId,
+      status: "ended",
+      reason,
+      endedAt: new Date().toISOString(),
+    };
+    this.#endReceipt = receipt;
+    this.#activity = null;
+    this.#releaseControlInternal();
+    this.#updateStatus("ended");
+    this.#source?.close(1000, "Session ended");
+    this.#source = null;
+    for (const viewer of this.#viewers.values()) {
+      if (viewer.retryTimer) clearTimeout(viewer.retryTimer);
+      viewer.socket.close(1000, "Session ended");
+    }
+    this.#viewers.clear();
+    this.#latestFrame = null;
+    return receipt;
   }
 
   acquireControl(principalId: string, clientInstanceId: string): BrowserControlOperationResult {

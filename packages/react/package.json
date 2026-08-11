@@ -39,10 +39,10 @@
     "react-dom": ">=18"
   },
   "scripts": {
-    "build": "pnpm --filter @browser-ui/core build && tsup src/index.tsx --clean --format esm --dts --external react --external react-dom --external @browser-ui/core && node scripts/finalize-styles.mjs",
+    "build": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/shaders build && tsup src/index.tsx --clean --format esm --dts --external react --external react-dom --external @browser-ui/core --external @browser-ui/shaders && node scripts/finalize-styles.mjs",
     "prepack": "pnpm run build",
-    "test": "pnpm --filter @browser-ui/core build && vitest run",
-    "typecheck": "pnpm --filter @browser-ui/core build && tsc --noEmit"
+    "test": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/shaders build && vitest run",
+    "typecheck": "pnpm --filter @browser-ui/core build && pnpm --filter @browser-ui/shaders build && tsc --noEmit"
   },
   "publishConfig": {
     "access": "public"
@@ -60,6 +60,7 @@
   },
   "dependencies": {
     "@browser-ui/core": "workspace:^",
+    "@browser-ui/shaders": "workspace:^",
     "motion": "^12.42.2"
   }
 }
