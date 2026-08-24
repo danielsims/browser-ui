@@ -67,9 +67,6 @@ class MockResizeObserver {
   observe() {
     MockResizeObserver.observeCount += 1;
   }
-  unobserve() {
-    return undefined;
-  }
   disconnect() {
     return undefined;
   }
