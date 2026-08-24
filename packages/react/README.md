@@ -89,6 +89,40 @@ const [panel, setPanel] = useState<HTMLDivElement | null>(null);
 </div>;
 ```
 
+Pass a container ref when picture-in-picture should stay inside a chat, thread,
+or other application panel. The complete framed browser moves between inline
+and floating layouts, can be dragged from any non-interactive part of its
+surface, and springs to the nearest allowed snap point. Reserved elements such
+as a composer can be supplied as avoid regions:
+
+```tsx
+const chatBody = useRef<HTMLDivElement>(null);
+const composer = useRef<HTMLDivElement>(null);
+const avoid = useMemo(() => [composer], []);
+
+<div ref={chatBody}>
+  <Browser
+    layoutId={`browser-${session.id}`}
+    pictureInPicture={{
+      allowedSnapPoints: [
+        "top-left",
+        "top-right",
+        "bottom-left",
+        "bottom-right",
+      ],
+      avoidRefs: avoid,
+      containerRef: chatBody,
+    }}
+    showPictureInPicture
+    streamUrl={session.streamUrl}
+  />
+  <div ref={composer}>...</div>
+</div>;
+```
+
+`layoutId` is optional, but a stable session-derived value preserves the shared
+Motion layout when a host reorders nearby conversation content.
+
 ## Host controls
 
 Browser UI owns the control rail's placement, display-mode transitions, and

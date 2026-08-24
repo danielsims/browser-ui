@@ -28,6 +28,10 @@ export type {
   BrowserRootProps,
   BrowserVariant,
 } from "./browser-root";
+export type {
+  BrowserPictureInPictureOptions,
+  BrowserPictureInPictureSnapPoint,
+} from "./browser-picture-in-picture";
 export { BrowserSurface, BrowserLoading } from "./browser-surface";
 export type {
   BrowserSurfaceProps,

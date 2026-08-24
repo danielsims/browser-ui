@@ -48,11 +48,6 @@
   transform-origin: top left;
 }
 
-.bui-browser-frame[data-mode-transitioning="true"],
-.bui-browser-frame [data-mode-transitioning="true"] {
-  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
 .bui-browser-frame--framed {
   --bui-frame-inset: 6px;
   --bui-frame-radius: 13px;
@@ -88,10 +83,47 @@
   bottom: 24px;
   z-index: 2147483000;
   width: min(440px, calc(100vw - 48px));
+  border-radius: var(--bui-pip-radius, 13px);
   box-shadow:
     0 28px 90px rgba(0, 0, 0, 0.32),
     0 8px 28px rgba(0, 0, 0, 0.18);
   will-change: transform;
+}
+
+.bui-browser-portal.bui-browser-portal--pip-contained {
+  position: fixed;
+  z-index: 2147483000;
+  display: block;
+  overflow: clip;
+  pointer-events: none;
+}
+
+.bui-browser-portal.bui-browser-portal--pip-contained
+  > .bui-browser-frame--pip {
+  position: absolute;
+  top: var(--bui-pip-top, 24px);
+  right: auto;
+  bottom: auto;
+  left: var(--bui-pip-left, 24px);
+  width: min(440px, calc(100% - 48px));
+  pointer-events: auto;
+}
+
+.bui-browser-frame--pip[data-pip-draggable="true"] {
+  cursor: grab;
+  touch-action: none;
+}
+
+.bui-browser-frame--pip[data-pip-dragging="true"] {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.bui-browser[data-mode="picture-in-picture"]:not(
+    [data-pip-preserve-inline-space="true"]
+  ) {
+  height: 0 !important;
+  min-height: 0 !important;
 }
 
 .bui-browser-frame--fullscreen {
