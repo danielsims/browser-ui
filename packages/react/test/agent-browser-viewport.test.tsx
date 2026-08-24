@@ -67,9 +67,8 @@ class MockResizeObserver {
   observe() {
     MockResizeObserver.observeCount += 1;
   }
-  disconnect() {
-    return undefined;
-  }
+  disconnect = () => undefined;
+  unobserve = () => undefined;
 }
 
 describe("AgentBrowserViewport", () => {
