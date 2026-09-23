@@ -39,6 +39,9 @@ public struct WebKitBrowserDriverConfiguration: Sendable {
     /// Optional idle fade for hosts that prefer it. `nil` keeps the pointer at
     /// its last position for the lifetime of the browser session.
     public var agentCursorIdleTimeout: TimeInterval?
+    /// Host policy applied to every top-level navigation, including redirects,
+    /// script navigation, clicked links, and target=_blank windows.
+    public var allowsNavigation: @MainActor @Sendable (URL) -> Bool
 
     public init(
         dataStore: DataStore = .persistent,
@@ -46,7 +49,10 @@ public struct WebKitBrowserDriverConfiguration: Sendable {
         pageLoadTimeout: TimeInterval = 30,
         postLoadSettleDelay: TimeInterval = 0.35,
         agentCursorLabel: String? = nil,
-        agentCursorIdleTimeout: TimeInterval? = nil
+        agentCursorIdleTimeout: TimeInterval? = nil,
+        allowsNavigation: @escaping @MainActor @Sendable (URL) -> Bool = {
+            $0.scheme == "https" || $0.scheme == "http"
+        }
     ) {
         precondition(desktopViewportSize.width > 0 && desktopViewportSize.height > 0)
         precondition(pageLoadTimeout > 0)
@@ -60,6 +66,7 @@ public struct WebKitBrowserDriverConfiguration: Sendable {
         self.postLoadSettleDelay = postLoadSettleDelay
         self.agentCursorLabel = agentCursorLabel
         self.agentCursorIdleTimeout = agentCursorIdleTimeout
+        self.allowsNavigation = allowsNavigation
     }
 }
 
@@ -1578,6 +1585,20 @@ public final class WebKitBrowserDriver: NSObject, ObservableObject, BrowserSeman
 // MARK: - Navigation + UI delegates
 
 extension WebKitBrowserDriver: WKNavigationDelegate {
+    public func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
+    ) {
+        guard let target = navigationAction.request.url,
+              configuration.allowsNavigation(target) else {
+            lastError = "Navigation was blocked by the host security policy."
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         url = webView.url?.absoluteString ?? url
         title = webView.title ?? title

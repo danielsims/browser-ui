@@ -31,7 +31,8 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --clean --format esm,cjs --dts",
+    "build": "node scripts/extract-overlay-css.mjs && tsup src/index.ts --clean --format esm,cjs --dts",
+    "sync:overlay-css": "node scripts/extract-overlay-css.mjs",
     "format": "prettier --check . --ignore-path ../../.gitignore --ignore-path ../../.prettierignore",
     "lint": "eslint --flag unstable_native_nodejs_ts_config",
     "prepack": "pnpm run build",

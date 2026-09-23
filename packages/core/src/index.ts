@@ -1,4 +1,6 @@
 export * from "./access";
+export * from "./agent-cursor";
+export * from "./agent-overlay-css";
 export * from "./driver";
 export * from "./geometry";
 export * from "./keyboard";
