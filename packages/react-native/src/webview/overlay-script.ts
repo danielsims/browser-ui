@@ -169,8 +169,9 @@ export function buildOverlayInstallScript(config: InPageOverlayConfig): string {
     status.appendChild(shimmer);
     root.appendChild(status);
 
+    // Visibility is controlled by the shared stylesheet's --visible class.
+    // An inline opacity would override that class and keep every click hidden.
     var cursor = element("div", {
-      opacity: "0",
       pointerEvents: "none"
     }, "bui-agent-cursor");
     cursor.id = ID + "-cursor";

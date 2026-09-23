@@ -9,6 +9,7 @@
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { format, resolveConfig } from "prettier";
 
 const stylesPath = fileURLToPath(
   new URL("../../react/src/styles.css", import.meta.url),
@@ -76,7 +77,13 @@ const contents = `/**
 export const agentOverlayCss = ${JSON.stringify(extracted)};
 `;
 
-await writeFile(outputPath, contents);
+await writeFile(
+  outputPath,
+  await format(contents, {
+    ...(await resolveConfig(outputPath)),
+    filepath: outputPath,
+  }),
+);
 console.log(
   `Wrote ${outputPath} (${extracted.length} bytes, ${extracted.split("\n").length} lines).`,
 );
