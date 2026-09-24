@@ -32,7 +32,7 @@ import type { WebViewBrowserCursor } from "./driver";
 import type { OperatingShaderConfig } from "./shader";
 
 const OVERLAY_GLOBAL = "__browserUiOverlay";
-const OVERLAY_VERSION = 3;
+const OVERLAY_VERSION = 4;
 
 /** Shader selection with the variant defaults already resolved. */
 export interface ResolvedOperatingShader {
@@ -341,6 +341,13 @@ export function buildOverlayInstallScript(config: InPageOverlayConfig): string {
   }
   api.frame = 0;
   api.startedAt = 0;
+  api.lastDraw = 0;
+  // The shader shares the GPU with the page and the host app's compositor, so
+  // it draws at half resolution (it is a soft gradient; the canvas upscales it
+  // invisibly) and at most 30 times a second. Scrolling the page and moving
+  // the host's sheet keep their frames.
+  var FRAME_MS = 1000 / 30;
+  var MAX_SCALE = 0.5;
   function draw(timestamp) {
     var gl = api.gl;
     var program = api.program;
@@ -350,8 +357,10 @@ export function buildOverlayInstallScript(config: InPageOverlayConfig): string {
     }
     api.frame = requestAnimationFrame(draw);
     if (!api.startedAt) api.startedAt = timestamp;
+    if (api.lastDraw && timestamp - api.lastDraw < FRAME_MS - 2) return;
+    api.lastDraw = timestamp;
     var rect = canvas.getBoundingClientRect();
-    var scale = Math.min(window.devicePixelRatio || 1, 1.35);
+    var scale = Math.min(window.devicePixelRatio || 1, MAX_SCALE);
     var width = Math.max(1, Math.round(rect.width * scale));
     var height = Math.max(1, Math.round(rect.height * scale));
     if (canvas.width !== width || canvas.height !== height) {
@@ -372,6 +381,7 @@ export function buildOverlayInstallScript(config: InPageOverlayConfig): string {
   function startShader() {
     if (api.frame || !api.program || !config.operating) return;
     api.startedAt = 0;
+    api.lastDraw = 0;
     api.frame = requestAnimationFrame(draw);
   }
   function stopShader() {
