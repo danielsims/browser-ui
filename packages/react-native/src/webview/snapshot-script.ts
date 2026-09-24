@@ -207,9 +207,9 @@ export const SNAPSHOT_SCRIPT = String.raw`
     var sensitive = type === 'password';
     var name = labelText(el, sensitive);
     var context = contextText(el, name, 200);
+    // The fingerprint's role, name and context are the element's own; the
+    // driver restores them, so they don't cross the bridge twice.
     var fingerprint = {
-      role: role(el),
-      name: name,
       tag: el.tagName.toLowerCase(),
       index: fingerprintIndex.has(el) ? fingerprintIndex.get(el) : 0
     };
@@ -217,8 +217,6 @@ export const SNAPSHOT_SCRIPT = String.raw`
     if (href) fingerprint.href = href;
     var text = clean(el.textContent, 160);
     if (text) fingerprint.text = text;
-    var contextShort = clean(context, 160);
-    if (contextShort) fingerprint.context = contextShort;
     var item = {ref: ref, role: role(el), name: name, fingerprint: fingerprint};
     if (context) item.context = context;
     if (el.disabled || el.getAttribute('aria-disabled') === 'true') item.disabled = true;

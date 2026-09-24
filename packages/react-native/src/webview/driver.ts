@@ -252,6 +252,17 @@ export class WebViewBrowserDriver {
   async snapshot(): Promise<WebViewBrowserSnapshot> {
     const value = await this.call(SNAPSHOT_SCRIPT, 20_000);
     if (!isSnapshot(value)) throw new Error("Could not read the page.");
+    // The page sends each fingerprint without the fields it shares with its
+    // element, which keeps large snapshots small on the native bridge.
+    for (const element of value.elements) {
+      if (!element.fingerprint) continue;
+      element.fingerprint = {
+        ...element.fingerprint,
+        role: element.role,
+        name: element.name,
+        ...(element.context ? { context: element.context.slice(0, 160) } : {}),
+      };
+    }
     this.elements = new Map(
       value.elements.map((element) => [element.ref, element]),
     );
