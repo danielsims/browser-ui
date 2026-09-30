@@ -38,6 +38,7 @@ agent-browser stream status
 
 ```tsx
 import { Browser } from "@browser-ui/react";
+
 import "@browser-ui/react/styles.css";
 
 <Browser
@@ -49,26 +50,26 @@ import "@browser-ui/react/styles.css";
   onEndSession={() => session.end()}
   showPictureInPicture
   showFullscreen
-/>
+/>;
 ```
 
 `Browser` is view-only by default. Set `interactive` only after the host has
 granted control. Client-side state is not authorization; the stream server must
 validate every input event.
 
-See the [live demo](https://browser-ui-red.vercel.app).
+See the [live demo](https://browser-ui.danielsi.ms).
 
 ## Packages
 
-| Package | Platform | Purpose |
-| --- | --- | --- |
-| [`@browser-ui/react`](https://www.npmjs.com/package/@browser-ui/react) | React | Browser chrome, live streams, recordings, PiP, and fullscreen |
-| [`@browser-ui/react-native`](https://www.npmjs.com/package/@browser-ui/react-native) | React Native / Expo | Native stream viewer and browser sheet |
-| [`browser_ui`](https://pub.dev/packages/browser_ui) | Flutter | Flutter stream controller, viewer, and browser sheet |
-| `BrowserUI` | Swift / SwiftUI | Shared lifecycle, viewport, cursor, chrome, and shader primitives |
-| `BrowserUIWebKit` | Swift / SwiftUI | An on-device WebKit browser that an agent can operate without a remote browser |
-| [`@browser-ui/core`](https://www.npmjs.com/package/@browser-ui/core) | Any JavaScript runtime | Protocol, session, geometry, recording, and access contracts |
-| [`@browser-ui/gateway`](https://www.npmjs.com/package/@browser-ui/gateway) | Node.js | Optional authenticated relay and `agent-browser` source connector |
+| Package                                                                              | Platform               | Purpose                                                                        |
+| ------------------------------------------------------------------------------------ | ---------------------- | ------------------------------------------------------------------------------ |
+| [`@browser-ui/react`](https://www.npmjs.com/package/@browser-ui/react)               | React                  | Browser chrome, live streams, recordings, PiP, and fullscreen                  |
+| [`@browser-ui/react-native`](https://www.npmjs.com/package/@browser-ui/react-native) | React Native / Expo    | Native stream viewer and browser sheet                                         |
+| [`browser_ui`](https://pub.dev/packages/browser_ui)                                  | Flutter                | Flutter stream controller, viewer, and browser sheet                           |
+| `BrowserUI`                                                                          | Swift / SwiftUI        | Shared lifecycle, viewport, cursor, chrome, and shader primitives              |
+| `BrowserUIWebKit`                                                                    | Swift / SwiftUI        | An on-device WebKit browser that an agent can operate without a remote browser |
+| [`@browser-ui/core`](https://www.npmjs.com/package/@browser-ui/core)                 | Any JavaScript runtime | Protocol, session, geometry, recording, and access contracts                   |
+| [`@browser-ui/gateway`](https://www.npmjs.com/package/@browser-ui/gateway)           | Node.js                | Optional authenticated relay and `agent-browser` source connector              |
 
 Each package has its own API documentation and examples. Applications only
 need the package for their platform; the gateway is optional.
@@ -106,7 +107,7 @@ import { BrowserRecording } from "@browser-ui/react";
   showPictureInPicture
   showFullscreen
   videoProps={{ controls: true }}
-/>
+/>;
 ```
 
 Recordings are always non-interactive. Use `Browser` for live sessions.
