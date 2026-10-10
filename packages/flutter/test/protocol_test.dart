@@ -6,11 +6,9 @@ import 'package:browser_ui/browser_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final fixtures =
-      jsonDecode(
-            File('test/fixtures/protocol/messages.json').readAsStringSync(),
-          )
-          as Map<String, Object?>;
+  final fixtures = jsonDecode(
+    File('test/fixtures/protocol/messages.json').readAsStringSync(),
+  ) as Map<String, Object?>;
 
   group('AgentBrowserProtocol', () {
     test('matches the shared agent-browser protocol fixtures', () {
@@ -60,16 +58,11 @@ void main() {
     });
 
     test('defaults optional frame metadata from older servers', () {
-      final message =
-          AgentBrowserProtocol.parse(<String, Object?>{
-                'type': 'frame',
-                'data': 'aGVsbG8=',
-                'metadata': <String, Object?>{
-                  'deviceWidth': 800,
-                  'deviceHeight': 600,
-                },
-              })
-              as AgentBrowserFrameMessage;
+      final message = AgentBrowserProtocol.parse(<String, Object?>{
+        'type': 'frame',
+        'data': 'aGVsbG8=',
+        'metadata': <String, Object?>{'deviceWidth': 800, 'deviceHeight': 600},
+      }) as AgentBrowserFrameMessage;
 
       expect(message.metadata.pageScaleFactor, 1);
       expect(message.metadata.offsetTop, 0);

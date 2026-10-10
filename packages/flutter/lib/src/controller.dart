@@ -9,8 +9,10 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'protocol.dart';
 
-typedef AgentBrowserChannelConnector =
-    WebSocketChannel Function(Uri uri, {Iterable<String>? protocols});
+typedef AgentBrowserChannelConnector = WebSocketChannel Function(
+  Uri uri, {
+  Iterable<String>? protocols,
+});
 
 /// A fresh, short-lived browser session connection resolved before each retry.
 final class AgentBrowserResolvedConnection {
