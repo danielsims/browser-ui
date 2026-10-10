@@ -15,4 +15,4 @@
 - Updated dependencies [763879c]
 - Updated dependencies [4dfe85a]
   - @browser-ui/core@0.3.0
-  - @browser-ui/shaders@0.1.0
+  - @browser-ui/shaders@0.3.0
