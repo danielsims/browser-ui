@@ -67,9 +67,8 @@ class MockResizeObserver {
   observe() {
     MockResizeObserver.observeCount += 1;
   }
-  disconnect() {
-    // The mock has no external observer resources to release.
-  }
+  disconnect = () => undefined;
+  unobserve = () => undefined;
 }
 
 describe("AgentBrowserViewport", () => {
@@ -87,7 +86,7 @@ describe("AgentBrowserViewport", () => {
         width: 1280,
         height: 800,
         close() {
-          // The mock bitmap does not own native resources.
+          return undefined;
         },
       }),
     );
@@ -108,10 +107,10 @@ describe("AgentBrowserViewport", () => {
       value: () => ({
         matches: true,
         addEventListener() {
-          // Media-query changes are not emitted by this mock.
+          return undefined;
         },
         removeEventListener() {
-          // Media-query changes are not emitted by this mock.
+          return undefined;
         },
       }),
     });
@@ -500,7 +499,7 @@ describe("AgentBrowserViewport", () => {
       width: 1280,
       height: 800,
       close() {
-        // The mock bitmap does not own native resources.
+        return undefined;
       },
     });
     await waitFor(() => expect(drawImage).toHaveBeenCalledTimes(1));
@@ -511,7 +510,7 @@ describe("AgentBrowserViewport", () => {
       width: 1280,
       height: 800,
       close() {
-        // The mock bitmap does not own native resources.
+        return undefined;
       },
     });
     await waitFor(() => expect(drawImage).toHaveBeenCalledTimes(2));
@@ -543,7 +542,7 @@ describe("AgentBrowserViewport", () => {
       width: 1280,
       height: 800,
       close() {
-        // The mock bitmap does not own native resources.
+        return undefined;
       },
     });
     await Promise.resolve();
@@ -973,16 +972,16 @@ describe("AgentBrowserViewport", () => {
     expect(MockWebSocket.instances).toHaveLength(1);
   });
 
-  it("animates externally controlled inline to picture-in-picture changes", async () => {
+  it("keeps one Motion frame across controlled display-mode changes", async () => {
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
       value: () => ({
         matches: false,
         addEventListener() {
-          // Media-query changes are not emitted by this mock.
+          return undefined;
         },
         removeEventListener() {
-          // Media-query changes are not emitted by this mock.
+          return undefined;
         },
       }),
     });
@@ -1016,6 +1015,7 @@ describe("AgentBrowserViewport", () => {
     await waitFor(() =>
       expect(view.container.querySelector(".bui-browser-frame")).not.toBeNull(),
     );
+    const inlineFrame = view.container.querySelector(".bui-browser-frame");
 
     view.rerender(
       <Browser
@@ -1027,9 +1027,8 @@ describe("AgentBrowserViewport", () => {
     const frame = view.container.ownerDocument.querySelector<HTMLElement>(
       ".bui-browser-frame--pip",
     );
-    expect(frame?.dataset.transitioning).toBe("true");
-    expect(frame?.style.transform).toContain("scale(1, 1)");
-    expect(frame?.style.transition).toContain("420ms");
+    expect(frame).toBe(inlineFrame);
+    expect(frame?.dataset.transitioning).toBeUndefined();
     expect(frame?.parentElement?.parentElement).toBe(document.body);
   });
 

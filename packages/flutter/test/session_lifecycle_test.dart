@@ -7,13 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('session lifecycle matches the shared cross-platform fixture', () {
-    final fixture =
-        jsonDecode(
-              File(
-                '../core/test/fixtures/session-lifecycle.json',
-              ).readAsStringSync(),
-            )
-            as Map<String, Object?>;
+    final fixture = jsonDecode(
+      File('../core/test/fixtures/session-lifecycle.json').readAsStringSync(),
+    ) as Map<String, Object?>;
 
     expect(fixture['version'], browserSessionLifecycleVersion);
     expect(

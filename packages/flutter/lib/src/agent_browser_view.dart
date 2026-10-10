@@ -8,12 +8,11 @@ import 'access.dart';
 import 'contained_geometry.dart';
 import 'controller.dart';
 
-typedef AgentBrowserPlaceholderBuilder =
-    Widget Function(
-      BuildContext context,
-      AgentBrowserConnectionStatus status,
-      Object? error,
-    );
+typedef AgentBrowserPlaceholderBuilder = Widget Function(
+  BuildContext context,
+  AgentBrowserConnectionStatus status,
+  Object? error,
+);
 
 /// Displays the latest agent-browser JPEG and optionally forwards pointer input.
 ///
@@ -251,9 +250,8 @@ final class _AgentBrowserViewState extends State<AgentBrowserView> {
             const SizedBox(height: 12),
             Text(
               label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: foreground),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: foreground),
               textAlign: TextAlign.center,
             ),
           ],
