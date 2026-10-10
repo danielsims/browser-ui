@@ -1,6 +1,6 @@
 {
   "name": "@browser-ui/react-native",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Native browser stream UI for agent-browser sessions.",
   "keywords": [
     "agent-browser",
@@ -40,7 +40,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --clean --format esm,cjs --dts --external react --external react-native --external @browser-ui/core",
+    "build": "tsup src/index.ts --clean --format esm,cjs --dts --external react --external react-native --external react-native-webview --external expo-gl --external @browser-ui/core --external @browser-ui/shaders",
     "format": "prettier --check . --ignore-path ../../.gitignore --ignore-path ../../.prettierignore",
     "lint": "eslint --flag unstable_native_nodejs_ts_config",
     "prepack": "pnpm run build",
@@ -50,11 +50,22 @@
     "access": "public"
   },
   "dependencies": {
-    "@browser-ui/core": "workspace:^"
+    "@browser-ui/core": "workspace:^",
+    "@browser-ui/shaders": "workspace:^"
   },
   "peerDependencies": {
+    "expo-gl": ">=13",
     "react": ">=18",
-    "react-native": ">=0.81"
+    "react-native": ">=0.81",
+    "react-native-webview": ">=13"
+  },
+  "peerDependenciesMeta": {
+    "expo-gl": {
+      "optional": true
+    },
+    "react-native-webview": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@browser-ui/eslint-config": "workspace:*",
@@ -62,9 +73,11 @@
     "@browser-ui/tsconfig": "workspace:*",
     "@types/react": "^19.2.8",
     "eslint": "catalog:",
+    "expo-gl": "~57.0.2",
     "prettier": "catalog:",
     "react": "^19.2.8",
     "react-native": "^0.83.6",
+    "react-native-webview": "13.16.0",
     "tsup": "^8.5.1",
     "typescript": "catalog:"
   },

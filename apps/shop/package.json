@@ -1,0 +1,33 @@
+{
+  "name": "@browser-ui/shop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "format": "prettier --check . --ignore-path ../../.gitignore --ignore-path ../../.prettierignore",
+    "lint": "eslint --flag unstable_native_nodejs_ts_config",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@browser-ui/react": "workspace:*",
+    "agent-browser": "0.32.3",
+    "geist": "1.7.2",
+    "next": "^16.2.11",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@browser-ui/eslint-config": "workspace:*",
+    "@browser-ui/prettier-config": "workspace:*",
+    "@browser-ui/tsconfig": "workspace:*",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:"
+  },
+  "prettier": "@browser-ui/prettier-config"
+}

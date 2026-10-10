@@ -4,6 +4,7 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import {
   forwardRef,
   useCallback,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -12,8 +13,10 @@ import { motion, MotionConfig } from "motion/react";
 import { createPortal } from "react-dom";
 
 import type { BrowserDisplayMode } from "./browser-display";
+import type { BrowserPictureInPictureOptions } from "./browser-picture-in-picture";
 import { BrowserDisplayProvider } from "./browser-display";
 import { useBrowserDisplayLifecycle, useBrowserLayout } from "./browser-layout";
+import { useBrowserPictureInPicture } from "./browser-picture-in-picture";
 
 export type BrowserVariant = "framed" | "bare";
 export type BrowserColorScheme = "light" | "dark" | "system";
@@ -25,8 +28,12 @@ export interface BrowserRootProps extends HTMLAttributes<HTMLElement> {
   mode?: BrowserDisplayMode;
   onModeChange?: (mode: BrowserDisplayMode) => void;
   colorScheme?: BrowserColorScheme;
+  /** Stable Motion layout identity for the live browser frame. */
+  layoutId?: string;
   /** Optional element whose visible bounds fullscreen mode should fill. */
   fullscreenTarget?: HTMLElement | null;
+  /** Optional container, drag, and snap policy for picture-in-picture mode. */
+  pictureInPicture?: BrowserPictureInPictureOptions;
 }
 
 const layoutTransition = {
@@ -44,8 +51,10 @@ export const BrowserRoot = forwardRef<HTMLElement, BrowserRootProps>(
       colorScheme = "light",
       defaultMode = "inline",
       fullscreenTarget,
+      layoutId: providedLayoutId,
       mode: controlledMode,
       onModeChange,
+      pictureInPicture,
       style,
       variant = "framed",
       ...props
@@ -54,19 +63,31 @@ export const BrowserRoot = forwardRef<HTMLElement, BrowserRootProps>(
   ) {
     const frameRef = useRef<HTMLDivElement>(null);
     const inlineHostRef = useRef<HTMLDivElement>(null);
+    const portalHostRef = useRef<HTMLDivElement>(null);
     const rootRef = useRef<HTMLElement>(null);
     const [portalHost, setPortalHost] = useState<HTMLDivElement | null>(null);
     const [controlsVisible, setControlsVisible] = useState(false);
     const [localMode, setLocalMode] = useState<BrowserDisplayMode>(defaultMode);
+    const generatedLayoutId = useId();
+    const layoutId = providedLayoutId ?? `browser-ui-${generatedLayoutId}`;
     const mode = controlledMode ?? localMode;
-    const { prepareModeTransition, retainedHeight } = useBrowserLayout({
+    const pictureInPictureLayout = useBrowserPictureInPicture({
+      frameRef,
+      frameMounted: portalHost !== null,
+      mode,
+      options: pictureInPicture,
+      portalHostRef,
+    });
+    const resetPictureInPicture = pictureInPictureLayout.resetToDefault;
+    const { retainedHeight } = useBrowserLayout({
       frameMounted: portalHost !== null,
       frameRef,
       fullscreenTarget,
       inlineHostRef,
       mode,
       portalHost,
-      rootRef,
+      preservePictureInPictureSpace:
+        pictureInPicture?.preserveInlineSpace === true,
     });
 
     const setRootRef = useCallback(
@@ -80,11 +101,11 @@ export const BrowserRoot = forwardRef<HTMLElement, BrowserRootProps>(
 
     const commitMode = useCallback(
       (nextMode: BrowserDisplayMode) => {
-        prepareModeTransition();
+        if (nextMode === "picture-in-picture") resetPictureInPicture();
         if (controlledMode === undefined) setLocalMode(nextMode);
         onModeChange?.(nextMode);
       },
-      [controlledMode, onModeChange, prepareModeTransition],
+      [controlledMode, onModeChange, resetPictureInPicture],
     );
 
     const setMode = useCallback(
@@ -121,15 +142,19 @@ export const BrowserRoot = forwardRef<HTMLElement, BrowserRootProps>(
       if (!inlineHost) return;
       const host = document.createElement("div");
       host.className = "bui-browser-portal";
+      portalHostRef.current = host;
       inlineHost.appendChild(host);
       setPortalHost(host);
-      return () => host.remove();
+      return () => {
+        portalHostRef.current = null;
+        host.remove();
+      };
     }, []);
 
-    const rootStyle =
+    const rootStyle: CSSProperties | undefined =
       retainedHeight === undefined
         ? style
-        : ({ ...style, minHeight: retainedHeight } as CSSProperties);
+        : { ...style, minHeight: retainedHeight };
     const frameModeClass =
       mode === "picture-in-picture"
         ? "bui-browser-frame--pip"
@@ -139,6 +164,15 @@ export const BrowserRoot = forwardRef<HTMLElement, BrowserRootProps>(
     const frame = (
       <motion.div
         ref={frameRef}
+        drag={mode === "picture-in-picture" && pictureInPictureLayout.draggable}
+        dragConstraints={portalHostRef}
+        dragControls={pictureInPictureLayout.dragControls}
+        dragElastic={0.04}
+        dragListener={false}
+        dragMomentum={false}
+        layout
+        layoutDependency={mode}
+        layoutId={layoutId}
         className={[
           "bui-browser-frame",
           `bui-browser-frame--${variant}`,
@@ -149,6 +183,23 @@ export const BrowserRoot = forwardRef<HTMLElement, BrowserRootProps>(
         data-color-scheme={colorScheme}
         data-controls-visible={controlsVisible ? "true" : undefined}
         data-mode={mode}
+        data-pip-draggable={
+          mode === "picture-in-picture" && pictureInPictureLayout.draggable
+            ? "true"
+            : undefined
+        }
+        data-pip-snap-point={
+          mode === "picture-in-picture"
+            ? pictureInPictureLayout.snapPoint
+            : undefined
+        }
+        style={{
+          x: pictureInPictureLayout.dragX,
+          y: pictureInPictureLayout.dragY,
+        }}
+        onDragEnd={pictureInPictureLayout.onDragEnd}
+        onDragStart={pictureInPictureLayout.onDragStart}
+        onPointerDownCapture={pictureInPictureLayout.onPointerDown}
         onPointerUp={(event) =>
           toggleTouchControls(event.pointerType, event.target)
         }
@@ -171,6 +222,12 @@ export const BrowserRoot = forwardRef<HTMLElement, BrowserRootProps>(
               .join(" ")}
             data-color-scheme={colorScheme}
             data-mode={mode}
+            data-pip-preserve-inline-space={
+              mode === "picture-in-picture" &&
+              pictureInPicture?.preserveInlineSpace === true
+                ? "true"
+                : undefined
+            }
             style={rootStyle}
           >
             <div ref={inlineHostRef} className="bui-browser-inline-host" />
