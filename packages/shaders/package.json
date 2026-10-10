@@ -1,6 +1,6 @@
 {
   "name": "@browser-ui/shaders",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Framework-neutral operating shader sources and configuration for Browser UI.",
   "keywords": [
     "browser-ui",
