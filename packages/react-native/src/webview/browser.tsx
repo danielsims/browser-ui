@@ -55,6 +55,8 @@ export interface WebViewBrowserProps {
   driverOptions?: WebViewBrowserDriverOptions;
   onReady?: (driver: WebViewBrowserDriver) => void;
   onStatusChange?: (status: WebViewBrowserStatus, error: Error | null) => void;
+  /** Fired when the platform terminates the WebView's renderer process. */
+  onProcessTerminated?: (platform: "ios" | "android") => void;
   onTitleChange?: (title: string) => void;
   onUrlChange?: (url: string) => void;
   operating?: boolean;
@@ -88,6 +90,7 @@ export interface WebViewBrowserProps {
 interface Callbacks {
   onReady: WebViewBrowserProps["onReady"];
   onStatusChange: WebViewBrowserProps["onStatusChange"];
+  onProcessTerminated: WebViewBrowserProps["onProcessTerminated"];
   onTitleChange: WebViewBrowserProps["onTitleChange"];
   onUrlChange: WebViewBrowserProps["onUrlChange"];
   onActivityChange: WebViewBrowserProps["onActivityChange"];
@@ -120,6 +123,7 @@ export const WebViewBrowser = forwardRef<
     driverOptions,
     onActivityChange,
     onReady,
+    onProcessTerminated,
     onStatusChange,
     onTitleChange,
     onUrlChange,
@@ -145,6 +149,7 @@ export const WebViewBrowser = forwardRef<
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const callbacksRef = useRef<Callbacks>({
     onReady,
+    onProcessTerminated,
     onStatusChange,
     onTitleChange,
     onUrlChange,
@@ -153,12 +158,20 @@ export const WebViewBrowser = forwardRef<
   useEffect(() => {
     callbacksRef.current = {
       onReady,
+      onProcessTerminated,
       onStatusChange,
       onTitleChange,
       onUrlChange,
       onActivityChange,
     };
-  }, [onReady, onStatusChange, onTitleChange, onUrlChange, onActivityChange]);
+  }, [
+    onReady,
+    onProcessTerminated,
+    onStatusChange,
+    onTitleChange,
+    onUrlChange,
+    onActivityChange,
+  ]);
 
   useEffect(() => {
     driver.configure(driverOptions ?? {});
@@ -297,6 +310,13 @@ export const WebViewBrowser = forwardRef<
     );
   }, []);
 
+  const onContentProcessDidTerminate = useCallback(() => {
+    callbacksRef.current.onProcessTerminated?.("ios");
+  }, []);
+  const onRenderProcessGone = useCallback(() => {
+    callbacksRef.current.onProcessTerminated?.("android");
+  }, []);
+
   const onNavigationStateChange = useCallback(
     (navigation: WebViewNavigation) => {
       if (navigation.url) callbacksRef.current.onUrlChange?.(navigation.url);
@@ -325,10 +345,12 @@ export const WebViewBrowser = forwardRef<
           sharedCookiesEnabled
           thirdPartyCookiesEnabled
           onError={onError}
+          onContentProcessDidTerminate={onContentProcessDidTerminate}
           onLoadEnd={onLoadEnd}
           onLoadStart={onLoadStart}
           onMessage={onMessage}
           onNavigationStateChange={onNavigationStateChange}
+          onRenderProcessGone={onRenderProcessGone}
           onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
           originWhitelist={["*"]}
           pointerEvents={pointerEvents}
