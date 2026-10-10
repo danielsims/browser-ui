@@ -1,5 +1,13 @@
 # @browser-ui/react-native
 
+## 0.3.1
+
+### Patch Changes
+
+- 2f7ecea: Add `onProcessTerminated` to `WebViewBrowser`, called when the platform kills the WebView's renderer process.
+  - @browser-ui/core@0.3.1
+  - @browser-ui/shaders@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes

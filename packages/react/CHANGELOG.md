@@ -1,5 +1,12 @@
 # @browser-ui/react
 
+## 0.3.1
+
+### Patch Changes
+
+- @browser-ui/core@0.3.1
+- @browser-ui/shaders@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes

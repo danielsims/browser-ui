@@ -1,6 +1,6 @@
 {
   "name": "@browser-ui/core",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Runtime-neutral protocol, session, geometry, and access contracts for Browser UI.",
   "keywords": [
     "agent-browser",
