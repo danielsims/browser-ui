@@ -10,6 +10,33 @@ export type {
   AgentBrowserStreamController,
   UseAgentBrowserStreamOptions,
 } from "./use-agent-browser-stream";
+export { useWebViewBrowser, WebViewBrowser } from "./webview/browser";
+export type {
+  WebViewBrowserHandle,
+  WebViewBrowserProps,
+  WebViewBrowserStatus,
+} from "./webview/browser";
+export { AgentCursor, OperatingOverlay } from "./webview/overlay";
+export type {
+  AgentCursorProps,
+  OperatingOverlayProps,
+} from "./webview/overlay";
+export type { OperatingShaderConfig } from "./webview/shader";
+export { WebViewBrowserDriver } from "./webview/driver";
+export type {
+  WebViewBrowserActivity,
+  WebViewBrowserActivityListener,
+  WebViewBrowserClickElement,
+  WebViewBrowserClickOptions,
+  WebViewBrowserClickResult,
+  WebViewBrowserClickStatus,
+  WebViewBrowserCursor,
+  WebViewBrowserDriverOptions,
+  WebViewBrowserElement,
+  WebViewBrowserElementFingerprint,
+  WebViewBrowserInjector,
+  WebViewBrowserSnapshot,
+} from "./webview/driver";
 
 export {
   mapContainedPointToViewport,

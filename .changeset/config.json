@@ -3,7 +3,15 @@
   "access": "public",
   "baseBranch": "main",
   "commit": false,
-  "fixed": [],
+  "fixed": [
+    [
+      "@browser-ui/core",
+      "@browser-ui/gateway",
+      "@browser-ui/react",
+      "@browser-ui/react-native",
+      "@browser-ui/shaders"
+    ]
+  ],
   "ignore": [],
   "linked": [],
   "privatePackages": {

@@ -39,8 +39,10 @@ export interface BrowserProps
       | "colorScheme"
       | "defaultMode"
       | "fullscreenTarget"
+      | "layoutId"
       | "mode"
       | "onModeChange"
+      | "pictureInPicture"
       | "style"
       | "variant"
     >,
@@ -104,11 +106,13 @@ export function AgentBrowser({
   displayAspectRatio,
   fullscreenTarget,
   interactive = false,
+  layoutId,
   loadingLabel = "Opening browser",
   onNavigate,
   onActivityChange,
   onEndSession,
   onModeChange,
+  pictureInPicture,
   onReload,
   onStatusChange,
   onTakeControl,
@@ -221,8 +225,10 @@ export function AgentBrowser({
       colorScheme={colorScheme}
       defaultMode={defaultMode}
       fullscreenTarget={fullscreenTarget}
+      layoutId={layoutId}
       mode={mode}
       onModeChange={onModeChange}
+      pictureInPicture={pictureInPicture}
       style={rootStyle}
       variant={variant}
     >
