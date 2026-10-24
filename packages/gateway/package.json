@@ -1,6 +1,6 @@
 {
   "name": "@browser-ui/gateway",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Authenticated remote browser gateway with an agent-browser source connector.",
   "keywords": [
     "agent-browser",
