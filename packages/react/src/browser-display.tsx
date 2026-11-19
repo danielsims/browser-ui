@@ -73,8 +73,7 @@ function FullscreenIcon({ active }: { active: boolean }) {
 function EndSessionIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 16 16">
-      <rect x="3" y="3" width="10" height="10" rx="2" />
-      <path d="m6 6 4 4m0-4-4 4" />
+      <rect x="4" y="4" width="8" height="8" rx="1.75" />
     </svg>
   );
 }
@@ -197,8 +196,12 @@ export interface BrowserEndSessionTriggerProps extends Omit<
   BrowserDisplayTriggerProps,
   "onClick"
 > {
+  /** Accessible name. */
   endLabel?: string;
   endingLabel?: string;
+  /** The button's visible text. */
+  endText?: string;
+  endingText?: string;
   onEndSession: () => Promise<void> | void;
 }
 
@@ -212,6 +215,8 @@ export const BrowserEndSessionTrigger = forwardRef<
     disabled,
     endLabel = "End browsing session",
     endingLabel = "Ending browsing session",
+    endText = "End session",
+    endingText = "Ending…",
     onEndSession,
     ...props
   },
@@ -246,6 +251,7 @@ export const BrowserEndSessionTrigger = forwardRef<
       }}
     >
       <EndSessionIcon />
+      <span>{ending ? endingText : endText}</span>
     </BrowserDisplayTrigger>
   );
 });

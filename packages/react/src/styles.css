@@ -549,6 +549,41 @@
   stroke-linejoin: round;
 }
 
+/* The terminal action reads as a labelled button, not another icon. */
+.bui-display-trigger.bui-end-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  padding: 0 11px 0 9px;
+  font:
+    500 12px/1 system-ui,
+    -apple-system,
+    sans-serif;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.bui-display-trigger.bui-end-session:hover {
+  transform: none;
+  border-color: rgba(255, 120, 110, 0.38);
+  background: rgba(70, 18, 16, 0.78);
+}
+.bui-display-trigger.bui-end-session svg {
+  width: 10px;
+  height: 10px;
+  fill: currentColor;
+  stroke: none;
+  color: #ff8a80;
+}
+.bui-display-trigger.bui-end-session:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
 .bui-recording-surface {
   background: var(--bui-surface-bg);
 }
