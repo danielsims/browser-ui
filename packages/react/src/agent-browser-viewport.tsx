@@ -18,7 +18,12 @@ import {
   describeAgentBrowserCommand,
   mapContainedPointToViewport,
   parseAgentBrowserMessage,
+  parseRelayHello,
+  relayFrameMetadata,
 } from "@browser-ui/core";
+
+import { createJpegFrameDrawer } from "./jpeg-frames";
+import { useRelayMedia } from "./relay-media";
 
 export type { BrowserViewportSize } from "@browser-ui/core";
 
@@ -40,7 +45,17 @@ export interface AgentBrowserViewportProps {
   resolveConnection?: () => Promise<
     Pick<BrowserSessionConnection, "url" | "protocols">
   >;
+  /**
+   * Reconnect when the stream drops. Defaults to true. Hosts whose sessions
+   * end with their connection, such as ticketed one-viewer streams, turn it
+   * off and treat `error` as the session having ended.
+   */
+  autoReconnect?: boolean;
   viewportSize?: BrowserViewportSize;
+  /** Play the session's sound, on streams that carry it (call from a user gesture). */
+  sound?: boolean;
+  /** Whether the stream offers sound, once it's known. */
+  onSoundAvailable?: (available: boolean) => void;
   onStatusChange?: (status: BrowserViewportStatus) => void;
   /** Reports the current structured browser command without exposing command values. */
   onActivityChange?: (activity: BrowserAgentActivity | null) => void;
@@ -68,11 +83,6 @@ interface TouchGesture {
   pointerId: number;
   startClientX: number;
   startClientY: number;
-}
-
-interface PendingViewportFrame {
-  data: string | ArrayBuffer;
-  metadata: AgentBrowserFrameMetadata;
 }
 
 type PendingInteraction =
@@ -142,7 +152,10 @@ export function AgentBrowserViewport({
   protocols,
   createWebSocket,
   resolveConnection,
+  autoReconnect = true,
   viewportSize,
+  sound = false,
+  onSoundAvailable,
   onStatusChange,
   onActivityChange,
   onInteractionIntent,
@@ -187,6 +200,15 @@ export function AgentBrowserViewport({
       return false;
     }
   }, []);
+
+  const relay = useRelayMedia({
+    element: () => elementRef.current,
+    canvas: () => canvasRef.current,
+    socket: () => socketRef.current,
+    sound,
+    onSoundAvailable,
+    onFrame: () => statusChangeRef.current?.("connected"),
+  });
 
   const point = useCallback((clientX: number, clientY: number) => {
     const element = elementRef.current;
@@ -241,48 +263,17 @@ export function AgentBrowserViewport({
   useEffect(() => {
     let closed = false;
     const connectionClosed = () => closed;
-    let decoding = false;
-    let pendingFrame: PendingViewportFrame | null = null;
     let sourceEpoch: string | null = null;
     let lastRemoteFrameSequence = -1;
-    const drawLatestFrame = async () => {
-      if (decoding || !pendingFrame) return;
-      decoding = true;
-      try {
-        while (!closed && pendingFrame) {
-          const message = pendingFrame;
-          pendingFrame = null;
-          let bitmap: ImageBitmap | undefined;
-          try {
-            const jpeg =
-              typeof message.data === "string"
-                ? decodeBase64(message.data).buffer
-                : message.data;
-            bitmap = await createImageBitmap(
-              new Blob([jpeg], { type: "image/jpeg" }),
-            );
-            if (connectionClosed()) break;
-            const canvas = canvasRef.current;
-            if (canvas) {
-              if (canvas.width !== bitmap.width) canvas.width = bitmap.width;
-              if (canvas.height !== bitmap.height)
-                canvas.height = bitmap.height;
-              canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
-              metadataRef.current = message.metadata;
-              reconnectAttempt = 0;
-              statusChangeRef.current?.("connected");
-            }
-          } catch {
-            // Keep the last valid frame. A malformed frame must not kill the stream.
-          } finally {
-            bitmap?.close();
-          }
-        }
-      } finally {
-        decoding = false;
-        if (!closed && pendingFrame) void drawLatestFrame();
-      }
-    };
+    const frames = createJpegFrameDrawer({
+      canvas: () => canvasRef.current,
+      closed: connectionClosed,
+      onDrawn: (metadata) => {
+        metadataRef.current = metadata;
+        reconnectAttempt = 0;
+        statusChangeRef.current?.("connected");
+      },
+    });
     let reconnectAttempt = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
@@ -296,11 +287,11 @@ export function AgentBrowserViewport({
         activityIdRef.current = null;
         activityChangeRef.current?.(null);
       }
-      statusChangeRef.current?.("disconnected");
-      if (reconnectAttempt >= 8) {
+      if (!autoReconnect || reconnectAttempt >= 8) {
         statusChangeRef.current?.("error");
         return;
       }
+      statusChangeRef.current?.("disconnected");
       reconnectTimer = setTimeout(
         () => void connect(),
         Math.min(2_000, 250 * 2 ** reconnectAttempt),
@@ -369,6 +360,7 @@ export function AgentBrowserViewport({
       });
       socket.addEventListener("message", (event) => {
         if (event.data instanceof ArrayBuffer) {
+          if (relay.receive(event.data)) return;
           const decoded = decodeBrowserSessionBinaryFrame(event.data);
           if (!decoded) return;
           if (
@@ -381,17 +373,23 @@ export function AgentBrowserViewport({
             lastRemoteFrameSequence = -1;
           }
           lastRemoteFrameSequence = decoded.header.frameSequence;
-          pendingFrame = {
+          frames.draw({
             data: event.data.slice(
               decoded.jpeg.byteOffset,
               decoded.jpeg.byteOffset + decoded.jpeg.byteLength,
             ),
             metadata: decoded.header.metadata,
-          };
-          void drawLatestFrame();
+          });
           return;
         }
         if (typeof event.data !== "string") return;
+        const hello = parseRelayHello(event.data);
+        if (hello) {
+          metadataRef.current = relayFrameMetadata(hello);
+          reconnectAttempt = 0;
+          relay.start(hello);
+          return;
+        }
         const message = parseAgentBrowserMessage(event.data);
         if (!message) return;
         if (message.type === "url") {
@@ -450,14 +448,14 @@ export function AgentBrowserViewport({
           return;
         }
         if (message.type !== "frame") return;
-        pendingFrame = message;
-        void drawLatestFrame();
+        frames.draw(message);
       });
     };
     void connect();
     return () => {
       closed = true;
-      pendingFrame = null;
+      frames.clear();
+      relay.stop();
       touchGestureRef.current = null;
       releaseActivePointer();
       if (moveFrameRef.current) cancelAnimationFrame(moveFrameRef.current);
@@ -467,8 +465,10 @@ export function AgentBrowserViewport({
       socketRef.current = null;
     };
   }, [
+    autoReconnect,
     createWebSocket,
     protocols,
+    relay,
     releaseActivePointer,
     resolveConnection,
     streamUrl,
@@ -929,13 +929,4 @@ export function AgentBrowserViewport({
       <canvas ref={canvasRef} />
     </div>
   );
-}
-
-function decodeBase64(encoded: string): Uint8Array<ArrayBuffer> {
-  const binary = atob(encoded);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
 }
