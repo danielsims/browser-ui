@@ -81,7 +81,8 @@ jobs:
           cache: true
       - run: dart format --output=none --set-exit-if-changed lib test
       - run: flutter pub get
-      - run: flutter analyze
+      # Infos (such as deprecations in newer Flutter) don't fail CI; warnings and errors do.
+      - run: flutter analyze --no-fatal-infos
       - run: flutter test
       - run: dart pub publish --dry-run
 
