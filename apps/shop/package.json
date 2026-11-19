@@ -14,7 +14,7 @@
     "@browser-ui/react": "workspace:*",
     "agent-browser": "0.32.3",
     "geist": "1.7.2",
-    "next": "^16.2.11",
+    "next": "^16.4.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

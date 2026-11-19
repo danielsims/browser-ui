@@ -6,8 +6,8 @@ packages:
   - packages/*
   - tooling/*
 
-useNodeVersion: 24.18.1
-nodeVersion: 24.18.1
+useNodeVersion: 24.22.1
+nodeVersion: 24.22.1
 engineStrict: true
 packageManagerStrict: true
 packageManagerStrictVersion: true
