@@ -77,18 +77,24 @@ public struct BrowserEndSessionButton: View {
                 ending = false
             }
         } label: {
-            Group {
+            HStack(spacing: 7) {
                 if ending {
                     ProgressView()
-                        .controlSize(.small)
+                        .controlSize(.mini)
+                        .tint(.white)
                 } else {
-                    Image(systemName: "stop.circle")
-                        .font(.system(size: 15, weight: .semibold))
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Color(red: 1, green: 0.54, blue: 0.5))
+                        .frame(width: 9, height: 9)
                 }
+                Text(ending ? "Ending…" : "End session")
+                    .font(.system(size: 13, weight: .medium))
             }
-            .frame(width: 36, height: 36)
+            .padding(.horizontal, 13)
+            .frame(height: 36)
             .foregroundStyle(.white)
-            .background(.black.opacity(0.58), in: Circle())
+            .background(.black.opacity(0.58), in: Capsule())
+            .overlay(Capsule().strokeBorder(.white.opacity(0.14)))
         }
         .buttonStyle(.plain)
         .disabled(ending)

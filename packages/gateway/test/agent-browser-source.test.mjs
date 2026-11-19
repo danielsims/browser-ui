@@ -222,6 +222,9 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
   assert.equal(completed.id, "fill-one");
   assert.equal(completed.durationMs, 42);
 
+  // More than any loopback socket buffers (Linux runners autotune to several
+  // megabytes), so the paused viewer backs up and stale frames must drop.
+  const burstFrames = 48;
   const latestBurstFrame = new Promise((resolve, reject) => {
     const timeout = setTimeout(
       () => reject(new Error("Timed out waiting for latest burst frame")),
@@ -230,7 +233,7 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
     const listener = (data, isBinary) => {
       if (!isBinary) return;
       const next = decodeBrowserSessionBinaryFrame(data);
-      if (next?.jpeg[2] !== 11) return;
+      if (next?.jpeg[2] !== burstFrames - 1) return;
       clearTimeout(timeout);
       viewer.off("message", listener);
       resolve(next);
@@ -239,7 +242,7 @@ test("relays a real binary frame from one local source to a remote viewer", asyn
   });
   viewer._socket.pause();
   const frameBody = Buffer.alloc(512 * 1024, 1);
-  for (let index = 0; index < 12; index += 1) {
+  for (let index = 0; index < burstFrames; index += 1) {
     frameBody[0] = index;
     localSocket.send(
       JSON.stringify({

@@ -49,6 +49,26 @@ public struct BrowserAgentCursorState: Codable, Equatable, Sendable {
         self.size = max(size, 1)
         self.backgroundColor = backgroundColor
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case x, y, label, pressed, typing, visible, variant, size, backgroundColor
+    }
+
+    /// Only `x` and `y` are required, as in the TypeScript protocol; sources
+    /// send just what changes, and the rest takes browser-ui's defaults.
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            x: try values.decode(Double.self, forKey: .x),
+            y: try values.decode(Double.self, forKey: .y),
+            label: try values.decodeIfPresent(String.self, forKey: .label),
+            pressed: try values.decodeIfPresent(Bool.self, forKey: .pressed) ?? false,
+            typing: try values.decodeIfPresent(Bool.self, forKey: .typing) ?? false,
+            visible: try values.decodeIfPresent(Bool.self, forKey: .visible) ?? true,
+            variant: try values.decodeIfPresent(Variant.self, forKey: .variant) ?? .dark,
+            size: try values.decodeIfPresent(Double.self, forKey: .size) ?? 32,
+            backgroundColor: try values.decodeIfPresent(String.self, forKey: .backgroundColor) ?? "#2f6bff")
+    }
 }
 
 /// Swift representation of browser-ui's v1 activity message.

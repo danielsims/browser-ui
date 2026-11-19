@@ -145,10 +145,29 @@ export interface BrowserNavigationInputMessage {
   direction: "back" | "forward";
 }
 
+/**
+ * A finger on the page, in page CSS pixels. Sources replay it as touch so the
+ * page taps, scrolls and flings natively; the first touch puts the page in
+ * touch mode for that viewer.
+ */
+export interface BrowserTouchInputMessage {
+  type: "input_touch";
+  eventType: "touchStart" | "touchMove" | "touchEnd" | "touchCancel";
+  x: number;
+  y: number;
+  /**
+   * When the finger moved, in milliseconds since the epoch on the viewer.
+   * Sources keep the spacing between touches, so a fling's speed follows
+   * the finger rather than the network's timing.
+   */
+  timestamp?: number;
+}
+
 export type BrowserSessionInputMessage =
   | BrowserMouseInputMessage
   | BrowserKeyboardInputMessage
-  | BrowserNavigationInputMessage;
+  | BrowserNavigationInputMessage
+  | BrowserTouchInputMessage;
 
 export interface BrowserSourceInputMessage {
   v: typeof BROWSER_SESSION_VERSION;
@@ -230,7 +249,8 @@ export function parseBrowserViewerMessage(
   if (
     decoded.type === "input_mouse" ||
     decoded.type === "input_keyboard" ||
-    decoded.type === "input_navigation"
+    decoded.type === "input_navigation" ||
+    decoded.type === "input_touch"
   ) {
     return parseBrowserSessionInput(decoded);
   }
@@ -295,6 +315,17 @@ export function parseBrowserSessionInput(
   if (value.type === "input_navigation") {
     return value.direction === "back" || value.direction === "forward"
       ? (value as unknown as BrowserNavigationInputMessage)
+      : null;
+  }
+  if (value.type === "input_touch") {
+    return (value.eventType === "touchStart" ||
+      value.eventType === "touchMove" ||
+      value.eventType === "touchEnd" ||
+      value.eventType === "touchCancel") &&
+      coordinate(value.x) &&
+      coordinate(value.y) &&
+      (value.timestamp === undefined || finite(value.timestamp))
+      ? (value as unknown as BrowserTouchInputMessage)
       : null;
   }
   return null;
