@@ -26,7 +26,7 @@
     "test:swift": "swift test",
     "typecheck": "turbo run typecheck",
     "version-packages": "changeset version",
-    "release": "pnpm build && npm_config_ignore_scripts=true changeset publish"
+    "release": "turbo run build --filter=./packages/* && npm_config_ignore_scripts=true changeset publish"
   },
   "devDependencies": {
     "@browser-ui/prettier-config": "workspace:*",
