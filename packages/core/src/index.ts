@@ -6,4 +6,5 @@ export * from "./geometry";
 export * from "./keyboard";
 export * from "./presentation";
 export * from "./protocol";
+export * from "./relay-stream";
 export * from "./session/index.js";
