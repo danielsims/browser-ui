@@ -49,10 +49,13 @@ export interface BrowserProps
     Pick<
       AgentBrowserViewportProps,
       | "ariaLabel"
+      | "autoReconnect"
       | "createWebSocket"
+      | "onSoundAvailable"
       | "onViewportResize"
       | "protocols"
       | "resolveConnection"
+      | "sound"
     > {
   /** WebSocket URL returned by `agent-browser stream status`. */
   streamUrl?: string;
@@ -74,6 +77,11 @@ export interface BrowserProps
   /** Optional normalized agent cursor rendered over the live viewport. */
   agentCursor?: BrowserAgentCursorState;
   loadingLabel?: string;
+  /**
+   * Shown in place of the browser once its connection has failed for good,
+   * such as a "session ended" card when `autoReconnect` is off.
+   */
+  connectionErrorFallback?: ReactNode;
   showPictureInPicture?: boolean;
   showFullscreen?: boolean;
   /** Shows the package-owned terminal lifecycle action when supplied. */
@@ -97,7 +105,9 @@ export function AgentBrowser({
   ariaLabel,
   access,
   agentCursor,
+  autoReconnect,
   className,
+  connectionErrorFallback,
   colorScheme,
   createWebSocket,
   defaultMode,
@@ -118,6 +128,7 @@ export function AgentBrowser({
   onTakeControl,
   onInteractionIntent,
   onUrlChange,
+  onSoundAvailable,
   onViewportResize,
   operating = false,
   operatingLabel = "Agent is operating this browser",
@@ -128,6 +139,7 @@ export function AgentBrowser({
   showControls = false,
   showPictureInPicture = false,
   showFullscreen = false,
+  sound,
   streamUrl,
   style,
   url = "",
@@ -143,8 +155,13 @@ export function AgentBrowser({
   const [lastActivity, setLastActivity] = useState<BrowserAgentActivity | null>(
     null,
   );
+  // Parked out of sight in the middle, so even its first move glides there.
   const [liveAgentCursor, setLiveAgentCursor] =
-    useState<BrowserAgentCursorState | null>(null);
+    useState<BrowserAgentCursorState | null>({
+      x: 0.5,
+      y: 0.5,
+      visible: false,
+    });
   const agentCursorIdleTimer = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -244,7 +261,13 @@ export function AgentBrowser({
         className="bui-browser-surface"
         style={surfaceStyle}
         loading={loading}
-        loadingFallback={<BrowserLoading label={loadingCopy} />}
+        loadingFallback={
+          status === "error" && connectionErrorFallback ? (
+            connectionErrorFallback
+          ) : (
+            <BrowserLoading label={loadingCopy} />
+          )
+        }
         overlay={
           <>
             {activelyOperating ? (
@@ -265,6 +288,7 @@ export function AgentBrowser({
           streamUrl={streamUrl}
           protocols={protocols}
           resolveConnection={resolveConnection}
+          autoReconnect={autoReconnect}
           createWebSocket={createWebSocket}
           ariaLabel={ariaLabel}
           className={viewportClassName}
@@ -275,6 +299,8 @@ export function AgentBrowser({
           onStatusChange={handleStatusChange}
           onUrlChange={handleUrlChange}
           onViewportResize={onViewportResize}
+          sound={sound}
+          onSoundAvailable={onSoundAvailable}
         />
         {showPictureInPicture ||
         showFullscreen ||
