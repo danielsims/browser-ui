@@ -1,5 +1,17 @@
 # @browser-ui/react
 
+## 0.4.0
+
+### Minor Changes
+
+- e18dc6f: Relay streams: browser sessions can stream their screen as H.264 and their sound as Opus on the session's WebSocket. `@browser-ui/core` adds the protocol (`parseRelayHello`, `parseRelayVideoHeader`, `relayCommand`); the React viewport plays it with WebCodecs only while it's on screen, and `Browser` takes `sound` and `onSoundAvailable`. Viewers can send touch input (`input_touch`). The agent cursor glides in from its parked position, and ending a session is a labelled button. The Swift package gains `BrowserStreamDriver` and `BrowserStreamView` for the same streams.
+
+### Patch Changes
+
+- Updated dependencies [e18dc6f]
+  - @browser-ui/core@0.4.0
+  - @browser-ui/shaders@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes

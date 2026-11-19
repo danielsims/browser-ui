@@ -1,5 +1,12 @@
 # @browser-ui/gateway
 
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [e18dc6f]
+  - @browser-ui/core@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes
