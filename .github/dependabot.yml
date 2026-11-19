@@ -5,3 +5,7 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    ignore:
+      # changesets/action v2 needs Changesets CLI v3; this repo is on v2.
+      - dependency-name: changesets/action
+        update-types: ["version-update:semver-major"]
